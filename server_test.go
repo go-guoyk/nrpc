@@ -2,6 +2,7 @@ package nrpc
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/stretchr/testify/require"
 	"net"
 	"testing"
@@ -17,6 +18,7 @@ func TestServer_Handle(t *testing.T) {
 	s.Register("flake", "create", func(ctx context.Context, req *Request, res *Response) (err error) {
 		res.Status = StatusOK
 		res.Message = "OK"
+		res.Payload = json.RawMessage{'{', '}'}
 		return
 	})
 	go s.Serve(l)

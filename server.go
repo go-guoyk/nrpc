@@ -2,7 +2,6 @@ package nrpc
 
 import (
 	"context"
-	"encoding/json"
 	"go.guoyk.net/trackid"
 	"net"
 	"sync"
@@ -21,8 +20,6 @@ var DefaultMethodNotFound HandlerFunc = func(ctx context.Context, req *Request, 
 	res.Message = "method not implemented"
 	return
 }
-
-var EmptyResponsePayload = json.RawMessage("{}")
 
 type Server struct {
 	ServiceNotFound HandlerFunc
@@ -90,9 +87,6 @@ func (s *Server) Handle(conn net.Conn) {
 	}
 
 	res.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
-	if res.Payload == nil {
-		res.Payload = EmptyResponsePayload
-	}
 
 	_, _ = res.WriteTo(conn)
 }
