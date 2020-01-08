@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	ErrInvalidHeadline     = errors.New("invalid headline")
 	ErrInvalidMetadata     = errors.New("invalid metadata")
 	ErrNotAIncomingMessage = errors.New("not a incoming message")
 	ErrNotAOutgoingMessage = errors.New("not a outgoing message")

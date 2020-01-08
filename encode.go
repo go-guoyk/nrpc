@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/url"
+	"strings"
 )
 
 type countableWriter struct {
@@ -18,10 +19,15 @@ func (w *countableWriter) Write(p []byte) (n int, err error) {
 }
 
 func EncodeHeadline(w io.Writer, subject1, subject2 string) (int, error) {
+	// no leading/trailing space is enforced here
+	subject1 = strings.TrimSpace(subject1)
+	subject2 = strings.TrimSpace(subject2)
 	buf := make([]byte, 0, len(subject1)+len(subject2)+2)
 	buf = append(buf, []byte(subject1)...)
-	buf = append(buf, ',')
-	buf = append(buf, []byte(subject2)...)
+	if len(subject2) > 0 {
+		buf = append(buf, ',')
+		buf = append(buf, []byte(subject2)...)
+	}
 	buf = append(buf, '\n')
 	return w.Write(buf)
 }

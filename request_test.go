@@ -11,6 +11,11 @@ key1=val1&key2=val2
 {"hello":"world"}
 `
 
+const sample2 = ` hellO  , wOrld  
+  key1=val1&key2=val2  
+{"hello":"world"}
+`
+
 func TestRequest_WriteTo(t *testing.T) {
 	req := NewRequest("hello", "world")
 	req.Metadata.Set("key1", "val1")
@@ -24,4 +29,28 @@ func TestRequest_WriteTo(t *testing.T) {
 	require.Equal(t, int64(50), n)
 	require.Equal(t, 50, buf.Len())
 	require.Equal(t, sample1, buf.String())
+}
+
+func TestReadRequest(t *testing.T) {
+	req, err := ReadRequest(bytes.NewReader([]byte(sample1)))
+	require.NoError(t, err)
+	require.Equal(t, "hello", req.Service)
+	require.Equal(t, "world", req.Method)
+	require.Equal(t, "val1", req.Metadata.Get("key1"))
+	require.Equal(t, "val2", req.Metadata.Get("key2"))
+	var p map[string]string
+	err = req.Unmarshal(&p)
+	require.NoError(t, err)
+	require.Equal(t, "world", p["hello"])
+
+	req, err = ReadRequest(bytes.NewReader([]byte(sample2)))
+	require.NoError(t, err)
+	require.Equal(t, "hello", req.Service)
+	require.Equal(t, "world", req.Method)
+	require.Equal(t, "val1", req.Metadata.Get("key1"))
+	require.Equal(t, "val2", req.Metadata.Get("key2"))
+	p = nil
+	err = req.Unmarshal(&p)
+	require.NoError(t, err)
+	require.Equal(t, "world", p["hello"])
 }

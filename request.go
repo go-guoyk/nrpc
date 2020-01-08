@@ -47,10 +47,12 @@ func ReadRequest(r io.Reader) (req *Request, err error) {
 		err = ErrMissingService
 		return
 	}
+	req.Service = strings.ToLower(req.Service)
 	if len(req.Method) == 0 {
 		err = ErrMissingMethod
 		return
 	}
+	req.Method = strings.ToLower(req.Method)
 	if err = DecodeMetadata(br, &req.Metadata); err != nil {
 		return
 	}

@@ -3,14 +3,9 @@ package nrpc
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/url"
 	"strings"
-)
-
-var (
-	ErrInvalidHeadline = errors.New("invalid headline")
 )
 
 func DecodeHeadline(br *bufio.Reader, val1, val2 *string) (err error) {
@@ -22,12 +17,12 @@ func DecodeHeadline(br *bufio.Reader, val1, val2 *string) (err error) {
 		return
 	}
 	splits := strings.SplitN(line, ",", 2)
-	if len(splits) != 2 {
-		err = ErrInvalidHeadline
-		return
+	*val1 = strings.TrimSpace(splits[0])
+	if len(splits) > 1 {
+		*val2 = strings.TrimSpace(splits[1])
+	} else {
+		*val2 = ""
 	}
-	*val1 = strings.ToLower(strings.TrimSpace(splits[0]))
-	*val2 = strings.ToLower(strings.TrimSpace(splits[1]))
 	return
 }
 
