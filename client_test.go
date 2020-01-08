@@ -26,10 +26,10 @@ func handleTestConn(c net.Conn, t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "1", body.Key1)
 	om := NewOutgoingMessage(c)
-	om.Subject = StatusOK
-	om.SecondarySubject = "ok"
+	om.Title = StatusOK
+	om.Subtitle = "ok"
 	om.Metadata.Set("hello", req.Metadata.Get("hello"))
-	pbody := testResp{Key2: req.SecondarySubject}
+	pbody := testResp{Key2: req.Subtitle}
 	err = om.Send(&pbody)
 	require.NoError(t, err)
 }

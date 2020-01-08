@@ -9,14 +9,14 @@ import (
 type HandlerFunc func(ctx context.Context, req *Message, res *Message) (err error)
 
 var DefaultServiceNotFound HandlerFunc = func(ctx context.Context, req *Message, res *Message) (err error) {
-	res.Subject = StatusErrNotImplemented
-	res.SecondarySubject = "service not implemented"
+	res.Title = StatusErrNotImplemented
+	res.Subtitle = "service not implemented"
 	return res.Send(nil)
 }
 
 var DefaultMethodNotFound HandlerFunc = func(ctx context.Context, req *Message, res *Message) (err error) {
-	res.Subject = StatusErrNotImplemented
-	res.SecondarySubject = "method not implemented"
+	res.Title = StatusErrNotImplemented
+	res.Subtitle = "method not implemented"
 	return res.Send(nil)
 }
 
@@ -56,12 +56,12 @@ func (s *Server) Handle(conn net.Conn) {
 		return
 	}
 	ms := NewOutgoingMessage(conn)
-	svc := s.services[mr.Subject]
+	svc := s.services[mr.Title]
 	if svc == nil {
 		_ = s.ServiceNotFound(context.Background(), mr, ms)
 		return
 	}
-	mtd := svc[mr.SecondarySubject]
+	mtd := svc[mr.Subtitle]
 	if mtd == nil {
 		_ = s.MethodNotFound(context.Background(), mr, ms)
 		return

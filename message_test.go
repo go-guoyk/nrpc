@@ -51,8 +51,8 @@ func TestNewIncomingMessage(t *testing.T) {
 func TestNewOutgoingMessage(t *testing.T) {
 	buf := &bytes.Buffer{}
 	m := NewOutgoingMessage(buf)
-	m.Subject = StatusErrInternal
-	m.SecondarySubject = "internal error"
+	m.Title = StatusErrInternal
+	m.Subtitle = "internal error"
 	m.Metadata.Add("track_id", "11111")
 	err := m.Send(map[string]interface{}{
 		"key1": "val1",

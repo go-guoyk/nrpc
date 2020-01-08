@@ -45,8 +45,8 @@ func Invoke(addr, service, method string, metadata url.Values, body interface{},
 	}
 	defer conn.Close()
 	m := NewOutgoingMessage(conn)
-	m.Subject = service
-	m.SecondarySubject = method
+	m.Title = service
+	m.Subtitle = method
 	if metadata != nil {
 		m.Metadata = metadata
 	}

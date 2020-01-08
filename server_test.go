@@ -15,8 +15,8 @@ func TestServer_Handle(t *testing.T) {
 
 	s := NewServer()
 	s.Register("flake", "create", func(ctx context.Context, req *Message, res *Message) (err error) {
-		res.Subject = StatusOK
-		res.SecondarySubject = "OK"
+		res.Title = StatusOK
+		res.Subtitle = "OK"
 		return res.Send(map[string]interface{}{
 			"id": 0,
 		})
@@ -29,7 +29,7 @@ func TestServer_Handle(t *testing.T) {
 	c := NewClient()
 	c.Register("flake", "127.0.0.1:18898")
 	m, err = c.Invoke("flake", "create", nil, nil, &out)
-	require.Equal(t, StatusOK, m.Subject)
-	require.Equal(t, "OK", m.SecondarySubject)
+	require.Equal(t, StatusOK, m.Title)
+	require.Equal(t, "OK", m.Subtitle)
 	require.NoError(t, err)
 }

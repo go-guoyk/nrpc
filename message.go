@@ -10,7 +10,6 @@ import (
 )
 
 var (
-	ErrInvalidHeadline     = errors.New("invalid headline")
 	ErrInvalidMetadata     = errors.New("invalid metadata")
 	ErrNotAIncomingMessage = errors.New("not a incoming message")
 	ErrNotAOutgoingMessage = errors.New("not a outgoing message")
@@ -18,9 +17,9 @@ var (
 )
 
 type Message struct {
-	Subject          string
-	SecondarySubject string
-	Metadata         url.Values
+	Title    string
+	Subtitle string
+	Metadata url.Values
 
 	br *bufio.Reader
 	bw *bufio.Writer
@@ -79,13 +78,13 @@ func (m *Message) Send(body interface{}) (err error) {
 }
 
 func (m *Message) sendHead() (err error) {
-	if _, err = m.bw.WriteString(m.Subject); err != nil {
+	if _, err = m.bw.WriteString(m.Title); err != nil {
 		return
 	}
 	if err = m.bw.WriteByte(','); err != nil {
 		return
 	}
-	if _, err = m.bw.WriteString(m.SecondarySubject); err != nil {
+	if _, err = m.bw.WriteString(m.Subtitle); err != nil {
 		return
 	}
 	if err = m.bw.WriteByte('\n'); err != nil {
@@ -139,8 +138,8 @@ func NewIncomingMessage(r io.Reader) (m *Message, err error) {
 		err = ErrInvalidHeadline
 		return
 	}
-	m.Subject, m.SecondarySubject = strings.TrimSpace(sp[0]), strings.TrimSpace(sp[1])
-	if len(m.Subject) == 0 || len(m.SecondarySubject) == 0 {
+	m.Title, m.Subtitle = strings.TrimSpace(sp[0]), strings.TrimSpace(sp[1])
+	if len(m.Title) == 0 || len(m.Subtitle) == 0 {
 		err = ErrInvalidHeadline
 		return
 	}
