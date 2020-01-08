@@ -77,21 +77,24 @@ func (s *Server) Handle(conn net.Conn) {
 		return
 	}
 
-	ctx := trackid.Set(context.Background(), req.Metadata.Get("track_id"))
+	ctx := context.Background()
+	ctx = trackid.Set(ctx, req.Metadata.Get(MetadataKeyTrackId))
 
 	fn := s.Method(req.Service, req.Method)
 
-	resp := NewResponse()
+	res := NewResponse()
 
-	if err = fn(ctx, req, resp); err != nil {
-		resp.Status = StatusErrInternal
-		resp.Message = err.Error()
-	}
-	if resp.Payload == nil {
-		resp.Payload = EmptyResponsePayload
+	if err = fn(ctx, req, res); err != nil {
+		res.Status = StatusErrInternal
+		res.Message = err.Error()
 	}
 
-	_, _ = resp.WriteTo(conn)
+	res.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
+	if res.Payload == nil {
+		res.Payload = EmptyResponsePayload
+	}
+
+	_, _ = res.WriteTo(conn)
 }
 
 func (s *Server) Serve(l net.Listener) (err error) {

@@ -14,7 +14,7 @@ func Invoke(ctx context.Context, addr string, req *Request, out interface{}) (re
 	}
 	defer conn.Close()
 
-	req.Metadata.Set("track_id", trackid.Get(ctx))
+	req.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
 
 	var eg *errgroup.Group
 	eg, ctx = errgroup.WithContext(ctx)

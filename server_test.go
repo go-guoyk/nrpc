@@ -28,6 +28,7 @@ func TestServer_Handle(t *testing.T) {
 	c.Register("flake", "127.0.0.1:18898")
 	req := NewRequest("flake", "create")
 	m, err = c.Invoke(context.Background(), req, &out)
+	require.NotEmpty(t, m.Metadata.Get(MetadataKeyTrackId))
 	require.Equal(t, StatusOK, m.Status)
 	require.Equal(t, "OK", m.Message)
 	require.NoError(t, err)
