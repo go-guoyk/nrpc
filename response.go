@@ -24,7 +24,7 @@ type Response struct {
 	br *bufio.Reader
 }
 
-// NewResponse create a new outgoing request
+// NewResponse create a new outgoing response
 // outgoing only
 func NewResponse() *Response {
 	return &Response{
@@ -33,7 +33,7 @@ func NewResponse() *Response {
 	}
 }
 
-// ReadResponse read a incoming request from io.Reader
+// ReadResponse read a incoming response from io.Reader
 // incoming only
 func ReadResponse(r io.Reader) (req *Response, err error) {
 	req = &Response{}
@@ -59,7 +59,7 @@ func (r *Response) Unmarshal(body interface{}) error {
 	return DecodePayload(r.br, body)
 }
 
-// WriteTo serialize the request into io.Writer
+// WriteTo serialize the response into io.Writer
 // outgoing only
 func (r *Response) WriteTo(w io.Writer) (tn int64, err error) {
 	if len(r.Status) == 0 {

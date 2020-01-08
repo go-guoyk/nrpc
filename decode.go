@@ -48,6 +48,9 @@ func DecodeMetadata(br *bufio.Reader, m *url.Values) (err error) {
 }
 
 func DecodePayload(br *bufio.Reader, payload interface{}) error {
+	if payload == nil {
+		return nil
+	}
 	dec := json.NewDecoder(br)
 	return dec.Decode(payload)
 }

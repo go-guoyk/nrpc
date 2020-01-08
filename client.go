@@ -1,9 +1,8 @@
 package nrpc
 
 import (
+	"context"
 	"errors"
-	"net"
-	"net/url"
 	"sync"
 )
 
@@ -29,33 +28,11 @@ func (c *Client) Register(service string, addr string) {
 	c.services[service] = addr
 }
 
-func (c *Client) Invoke(service, method string, metadata url.Values, body interface{}, out interface{}) (resp *Message, err error) {
-	addr := c.services[service]
+func (c *Client) Invoke(ctx context.Context, req *Request, out interface{}) (resp *Response, err error) {
+	addr := c.services[req.Service]
 	if len(addr) == 0 {
 		err = ErrServiceNotRegistered
 		return
 	}
-	return Invoke(addr, service, method, metadata, body, out)
-}
-
-func Invoke(addr, service, method string, metadata url.Values, body interface{}, out interface{}) (resp *Message, err error) {
-	var conn net.Conn
-	if conn, err = net.Dial("tcp", addr); err != nil {
-		return
-	}
-	defer conn.Close()
-	m := NewOutgoingMessage(conn)
-	m.Title = service
-	m.Subtitle = method
-	if metadata != nil {
-		m.Metadata = metadata
-	}
-	if err = m.Send(body); err != nil {
-		return
-	}
-	if resp, err = NewIncomingMessage(conn); err != nil {
-		return
-	}
-	err = resp.Recv(out)
-	return
+	return Invoke(ctx, addr, req, out)
 }

@@ -14,22 +14,21 @@ func TestServer_Handle(t *testing.T) {
 	defer l.Close()
 
 	s := NewServer()
-	s.Register("flake", "create", func(ctx context.Context, req *Message, res *Message) (err error) {
-		res.Title = StatusOK
-		res.Subtitle = "OK"
-		return res.Send(map[string]interface{}{
-			"id": 0,
-		})
+	s.Register("flake", "create", func(ctx context.Context, req *Request, res *Response) (err error) {
+		res.Status = StatusOK
+		res.Message = "OK"
+		return
 	})
 	go s.Serve(l)
 
 	out := map[string]interface{}{}
 
-	var m *Message
+	var m *Response
 	c := NewClient()
 	c.Register("flake", "127.0.0.1:18898")
-	m, err = c.Invoke("flake", "create", nil, nil, &out)
-	require.Equal(t, StatusOK, m.Title)
-	require.Equal(t, "OK", m.Subtitle)
+	req := NewRequest("flake", "create")
+	m, err = c.Invoke(context.Background(), req, &out)
+	require.Equal(t, StatusOK, m.Status)
+	require.Equal(t, "OK", m.Message)
 	require.NoError(t, err)
 }

@@ -73,4 +73,7 @@ func TestDecodePayload(t *testing.T) {
 	err = DecodePayload(r, &v)
 	require.NoError(t, err)
 	require.Equal(t, "world", v["hello"])
+
+	err = DecodePayload(r, nil)
+	require.NoError(t, err)
 }
