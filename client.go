@@ -10,12 +10,15 @@ var (
 	ErrServiceNotRegistered = errors.New("service not registered")
 )
 
+type ClientOptions struct {
+}
+
 type Client struct {
 	services  map[string]string
 	servicesL sync.Locker
 }
 
-func NewClient() *Client {
+func NewClient(opts ClientOptions) *Client {
 	return &Client{
 		services:  map[string]string{},
 		servicesL: &sync.Mutex{},

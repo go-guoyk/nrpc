@@ -14,6 +14,7 @@ func Invoke(ctx context.Context, addr string, req *Request, out interface{}) (re
 	defer conn.Close()
 
 	req.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
+	req.Metadata.Set(MetadataKeyHostname, hostname)
 
 	go req.WriteTo(conn)
 

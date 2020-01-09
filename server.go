@@ -7,66 +7,58 @@ import (
 	"sync"
 )
 
-type HandlerFunc func(ctx context.Context, req *Request, res *Response) (err error)
-
-var DefaultServiceNotFound HandlerFunc = func(ctx context.Context, req *Request, res *Response) (err error) {
-	res.Status = StatusErrNotImplemented
-	res.Message = "service not implemented"
-	return
-}
-
-var DefaultMethodNotFound HandlerFunc = func(ctx context.Context, req *Request, res *Response) (err error) {
-	res.Status = StatusErrNotImplemented
-	res.Message = "method not implemented"
-	return
+type ServerOptions struct {
+	DefaultHandler Handler
 }
 
 type Server struct {
-	ServiceNotFound HandlerFunc
-	MethodNotFound  HandlerFunc
+	DefaultHandler Handler
 
-	services  map[string]map[string]HandlerFunc
-	servicesL *sync.RWMutex
+	services map[string]map[string]Handler
+	listener net.Listener
+	conns    *sync.WaitGroup
 }
 
-func NewServer() *Server {
+func NewServer(opts ServerOptions) *Server {
+	if opts.DefaultHandler == nil {
+		opts.DefaultHandler = NotFound
+	}
 	return &Server{
-		services:        map[string]map[string]HandlerFunc{},
-		servicesL:       &sync.RWMutex{},
-		ServiceNotFound: DefaultServiceNotFound,
-		MethodNotFound:  DefaultMethodNotFound,
+		DefaultHandler: opts.DefaultHandler,
+		services:       map[string]map[string]Handler{},
+		conns:          &sync.WaitGroup{},
 	}
 }
 
-func (s *Server) Register(service string, method string, hf HandlerFunc) {
-	s.servicesL.Lock()
-	defer s.servicesL.Unlock()
+func (s *Server) Handle(service string, method string, h Handler) {
 	svc := s.services[service]
 	if svc == nil {
-		svc = map[string]HandlerFunc{}
+		svc = map[string]Handler{}
 		s.services[service] = svc
 	}
-	svc[method] = hf
+	svc[method] = h
 }
 
-func (s *Server) Method(service, method string) HandlerFunc {
-	s.servicesL.RLock()
-	defer s.servicesL.RUnlock()
+func (s *Server) HandleFunc(service string, method string, h HandlerFunc) {
+	s.Handle(service, method, h)
+}
 
+func (s *Server) Handler(service, method string) Handler {
 	svc := s.services[service]
 	if svc == nil {
-		return s.ServiceNotFound
+		return s.DefaultHandler
 	} else {
-		fn := svc[method]
-		if fn == nil {
-			return s.MethodNotFound
+		h := svc[method]
+		if h == nil {
+			return s.DefaultHandler
 		} else {
-			return fn
+			return h
 		}
 	}
 }
 
-func (s *Server) Handle(conn net.Conn) {
+func (s *Server) ServeConn(conn net.Conn) {
+	defer s.conns.Done()
 	defer conn.Close()
 	var err error
 	var req *Request
@@ -77,16 +69,17 @@ func (s *Server) Handle(conn net.Conn) {
 	ctx := context.Background()
 	ctx = trackid.Set(ctx, req.Metadata.Get(MetadataKeyTrackId))
 
-	fn := s.Method(req.Service, req.Method)
+	h := s.Handler(req.Service, req.Method)
 
 	res := NewResponse()
 
-	if err = fn(ctx, req, res); err != nil {
+	res.Metadata.Set(MetadataKeyHostname, hostname)
+	res.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
+
+	if err = h.ServeNRPC(ctx, req, res); err != nil {
 		res.Status = StatusErrInternal
 		res.Message = err.Error()
 	}
-
-	res.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
 
 	_, _ = res.WriteTo(conn)
 }
@@ -97,6 +90,29 @@ func (s *Server) Serve(l net.Listener) (err error) {
 		if conn, err = l.Accept(); err != nil {
 			return
 		}
-		go s.Handle(conn)
+		s.conns.Add(1)
+		go s.ServeConn(conn)
 	}
+}
+
+func (s *Server) Start(addr string) (err error) {
+	if s.listener != nil {
+		return
+	}
+	var l net.Listener
+	if l, err = net.Listen("tcp", addr); err != nil {
+		return
+	}
+	s.listener = l
+	go s.Serve(l)
+	return
+}
+
+func (s *Server) Shutdown() {
+	if s.listener == nil {
+		return
+	}
+	_ = s.listener.Close()
+	s.listener = nil
+	s.conns.Wait()
 }
