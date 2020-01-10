@@ -3,6 +3,7 @@ package nrpc
 import (
 	"context"
 	"errors"
+	"github.com/cenkalti/backoff/v4"
 	"sync"
 )
 
@@ -11,17 +12,23 @@ var (
 )
 
 type ClientOptions struct {
+	MaxRetries uint64
 }
 
 type Client struct {
-	services  map[string]string
-	servicesL sync.Locker
+	maxRetries uint64
+	services   map[string]string
+	servicesL  sync.Locker
 }
 
 func NewClient(opts ClientOptions) *Client {
+	if opts.MaxRetries == 0 {
+		opts.MaxRetries = 3
+	}
 	return &Client{
-		services:  map[string]string{},
-		servicesL: &sync.Mutex{},
+		maxRetries: opts.MaxRetries,
+		services:   map[string]string{},
+		servicesL:  &sync.Mutex{},
 	}
 }
 
@@ -37,5 +44,16 @@ func (c *Client) Invoke(ctx context.Context, req *Request, out interface{}) (res
 		err = ErrServiceNotRegistered
 		return
 	}
-	return Invoke(ctx, addr, req, out)
+	err = backoff.Retry(func() (err error) {
+		resp, err = Invoke(ctx, addr, req, out)
+		return
+	},
+		backoff.WithContext(
+			backoff.WithMaxRetries(backoff.NewExponentialBackOff(),
+				c.maxRetries,
+			),
+			ctx,
+		),
+	)
+	return
 }
