@@ -44,8 +44,15 @@ func (c *Client) Invoke(ctx context.Context, req *Request, out interface{}) (res
 		err = ErrServiceNotRegistered
 		return
 	}
+	var tried int
 	err = backoff.Retry(func() (err error) {
-		resp, err = Invoke(ctx, addr, req, out)
+		// non-success is error too
+		tried++
+		if resp, err = Invoke(ctx, addr, req, out); err == nil {
+			if resp.Status != StatusOK {
+				err = &Error{Status: resp.Status, Message: resp.Message, Tried: tried}
+			}
+		}
 		return
 	},
 		backoff.WithContext(

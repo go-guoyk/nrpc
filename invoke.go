@@ -25,8 +25,11 @@ func Invoke(ctx context.Context, addr string, req *Request, out interface{}) (re
 		return
 	}
 
-	if err = resp.Unmarshal(out); err != nil {
-		return
+	// unmarshal only on success
+	if resp.Status == StatusOK {
+		if err = resp.Unmarshal(out); err != nil {
+			return
+		}
 	}
 	return
 }

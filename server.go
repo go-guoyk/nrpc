@@ -77,8 +77,13 @@ func (s *Server) ServeConn(conn net.Conn) {
 	res.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
 
 	if err = h.ServeNRPC(ctx, req, res); err != nil {
-		res.Status = StatusErrInternal
-		res.Message = err.Error()
+		if ne, ok := err.(*Error); ok {
+			res.Status = ne.Status
+			res.Message = ne.Message
+		} else {
+			res.Status = StatusErrInternal
+			res.Message = err.Error()
+		}
 	}
 
 	_, _ = res.WriteTo(conn)
