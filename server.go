@@ -5,28 +5,36 @@ import (
 	"go.guoyk.net/trackid"
 	"net"
 	"sync"
+	"sync/atomic"
 )
 
 type ServerOptions struct {
 	DefaultHandler Handler
+	MaxConns       int64
 }
 
 type Server struct {
-	DefaultHandler Handler
+	defaultHandler Handler
+	maxConns       int64
 
-	services map[string]map[string]Handler
-	listener net.Listener
-	conns    *sync.WaitGroup
+	services  map[string]map[string]Handler
+	listener  net.Listener
+	waitConns *sync.WaitGroup
+	numConns  int64
 }
 
 func NewServer(opts ServerOptions) *Server {
 	if opts.DefaultHandler == nil {
 		opts.DefaultHandler = NotFound
 	}
+	if opts.MaxConns <= 0 {
+		opts.MaxConns = 256
+	}
 	return &Server{
-		DefaultHandler: opts.DefaultHandler,
+		defaultHandler: opts.DefaultHandler,
+		maxConns:       opts.MaxConns,
 		services:       map[string]map[string]Handler{},
-		conns:          &sync.WaitGroup{},
+		waitConns:      &sync.WaitGroup{},
 	}
 }
 
@@ -46,11 +54,11 @@ func (s *Server) HandleFunc(service string, method string, h HandlerFunc) {
 func (s *Server) Handler(service, method string) Handler {
 	svc := s.services[service]
 	if svc == nil {
-		return s.DefaultHandler
+		return s.defaultHandler
 	} else {
 		h := svc[method]
 		if h == nil {
-			return s.DefaultHandler
+			return s.defaultHandler
 		} else {
 			return h
 		}
@@ -58,24 +66,41 @@ func (s *Server) Handler(service, method string) Handler {
 }
 
 func (s *Server) ServeConn(conn net.Conn) {
-	defer s.conns.Done()
+	defer s.waitConns.Done()
 	defer conn.Close()
+
+	// check max connections
+	defer atomic.AddInt64(&s.numConns, -1)
+	if atomic.AddInt64(&s.numConns, 1) > s.maxConns {
+		res := NewResponse()
+		res.Status = StatusErrOverloaded
+		res.Message = "max connections overloaded"
+		res.Metadata.Set(MetadataKeyHostname, hostname)
+		_, _ = res.WriteTo(conn)
+		return
+	}
+
 	var err error
+
+	// read request
 	var req *Request
 	if req, err = ReadRequest(conn); err != nil {
 		return
 	}
 
+	// prepare context
 	ctx := context.Background()
 	ctx = trackid.Set(ctx, req.Metadata.Get(MetadataKeyTrackId))
 
-	h := s.Handler(req.Service, req.Method)
-
+	// prepare response
 	res := NewResponse()
-
 	res.Metadata.Set(MetadataKeyHostname, hostname)
 	res.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
 
+	// find handler
+	h := s.Handler(req.Service, req.Method)
+
+	// execute handler
 	if err = h.ServeNRPC(ctx, req, res); err != nil {
 		if ne, ok := err.(*Error); ok {
 			res.Status = ne.Status
@@ -86,6 +111,7 @@ func (s *Server) ServeConn(conn net.Conn) {
 		}
 	}
 
+	// write response
 	_, _ = res.WriteTo(conn)
 }
 
@@ -95,7 +121,7 @@ func (s *Server) Serve(l net.Listener) (err error) {
 		if conn, err = l.Accept(); err != nil {
 			return
 		}
-		s.conns.Add(1)
+		s.waitConns.Add(1)
 		go s.ServeConn(conn)
 	}
 }
@@ -119,5 +145,5 @@ func (s *Server) Shutdown() {
 	}
 	_ = s.listener.Close()
 	s.listener = nil
-	s.conns.Wait()
+	s.waitConns.Wait()
 }
