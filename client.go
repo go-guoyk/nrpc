@@ -38,8 +38,8 @@ func (c *Client) Register(service string, addr string) {
 	c.services[service] = addr
 }
 
-func (c *Client) Invoke(ctx context.Context, req *Request, out interface{}) (resp *Response, err error) {
-	addr := c.services[req.Service]
+func (c *Client) Invoke(ctx context.Context, nreq *Request, out interface{}) (nres *Response, err error) {
+	addr := c.services[nreq.Service]
 	if len(addr) == 0 {
 		err = ErrServiceNotRegistered
 		return
@@ -48,9 +48,9 @@ func (c *Client) Invoke(ctx context.Context, req *Request, out interface{}) (res
 	err = backoff.Retry(func() (err error) {
 		// non-success is error too
 		tried++
-		if resp, err = Invoke(ctx, addr, req, out); err == nil {
-			if resp.Status != StatusOK {
-				err = &Error{Status: resp.Status, Message: resp.Message, Tried: tried}
+		if nres, err = Invoke(ctx, addr, nreq, out); err == nil {
+			if nres.Status != StatusOK {
+				err = &Error{Status: nres.Status, Message: nres.Message, Tried: tried}
 			}
 		}
 		return

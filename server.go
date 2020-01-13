@@ -69,36 +69,36 @@ func (s *Server) ServeConn(conn net.Conn) {
 
 	// read request
 	var err error
-	var req *Request
-	if req, err = ReadRequest(conn); err != nil {
+	var nreq *Request
+	if nreq, err = ReadRequest(conn); err != nil {
 		return
 	}
 
 	// prepare context
 	ctx := context.Background()
-	ctx = trackid.Set(ctx, req.Metadata.Get(MetadataKeyTrackId))
+	ctx = trackid.Set(ctx, nreq.Metadata.Get(MetadataKeyTrackId))
 
 	// prepare response
-	res := NewResponse()
-	res.Metadata.Set(MetadataKeyHostname, hostname)
-	res.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
+	nres := NewResponse()
+	nres.Metadata.Set(MetadataKeyHostname, hostname)
+	nres.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
 
 	// find handler
-	h := s.Handler(req.Service, req.Method)
+	h := s.Handler(nreq.Service, nreq.Method)
 
 	// execute handler
-	if err = h.ServeNRPC(ctx, req, res); err != nil {
+	if err = h.ServeNRPC(ctx, nreq, nres); err != nil {
 		if ne, ok := err.(*Error); ok {
-			res.Status = ne.Status
-			res.Message = ne.Message
+			nres.Status = ne.Status
+			nres.Message = ne.Message
 		} else {
-			res.Status = StatusErrInternal
-			res.Message = err.Error()
+			nres.Status = StatusErrInternal
+			nres.Message = err.Error()
 		}
 	}
 
 	// write response
-	_, _ = res.WriteTo(conn)
+	_, _ = nres.WriteTo(conn)
 }
 
 func (s *Server) Serve(l net.Listener) (err error) {

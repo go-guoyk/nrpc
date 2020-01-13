@@ -22,15 +22,15 @@ func TestServer_Handle(t *testing.T) {
 
 	out := map[string]interface{}{}
 
-	var m *Response
+	var nres *Response
 	c := NewClient(ClientOptions{})
 	c.Register("flake", "127.0.0.1:18898")
-	req := NewRequest("flake", "create")
-	m, err = c.Invoke(context.Background(), req, &out)
-	require.NotEmpty(t, m.Metadata.Get(MetadataKeyTrackId))
-	require.NotEmpty(t, m.Metadata.Get(MetadataKeyHostname))
-	require.Equal(t, StatusOK, m.Status)
-	require.Equal(t, "OK", m.Message)
+	nreq := NewRequest("flake", "create")
+	nres, err = c.Invoke(context.Background(), nreq, &out)
+	require.NotEmpty(t, nres.Metadata.Get(MetadataKeyTrackId))
+	require.NotEmpty(t, nres.Metadata.Get(MetadataKeyHostname))
+	require.Equal(t, StatusOK, nres.Status)
+	require.Equal(t, "OK", nres.Message)
 	require.NoError(t, err)
 }
 
@@ -44,15 +44,15 @@ func TestServer_Shutdown(t *testing.T) {
 	})
 	err := s.Start(":17777")
 	require.NoError(t, err)
-	req := NewRequest("test", "test")
+	nreq := NewRequest("test", "test")
 	go func() {
 		time.Sleep(time.Millisecond * 100)
 		s.Shutdown()
 	}()
-	var res *Response
+	var nres *Response
 	var m map[string]string
-	res, err = Invoke(context.Background(), "127.0.0.1:17777", req, &m)
+	nres, err = Invoke(context.Background(), "127.0.0.1:17777", nreq, &m)
 	require.NoError(t, err)
-	require.Equal(t, "OK", res.Message)
+	require.Equal(t, "OK", nres.Message)
 	require.Equal(t, "World", m["Hello"])
 }
