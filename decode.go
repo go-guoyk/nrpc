@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"io"
-	"net/url"
 	"strings"
 )
 
@@ -26,7 +25,7 @@ func DecodeHeadline(br *bufio.Reader, val1, val2 *string) (err error) {
 	return
 }
 
-func DecodeMetadata(br *bufio.Reader, m *url.Values) (err error) {
+func DecodeMetadata(br *bufio.Reader, m *Metadata) (err error) {
 	var line string
 	if line, err = br.ReadString('\n'); err != nil {
 		if err == io.EOF {
@@ -36,14 +35,14 @@ func DecodeMetadata(br *bufio.Reader, m *url.Values) (err error) {
 	}
 	line = strings.TrimSpace(line)
 	if len(line) == 0 {
-		*m = url.Values{}
+		*m = Metadata{}
 		return
 	}
-	var values url.Values
-	if values, err = url.ParseQuery(line); err != nil {
+	var md Metadata
+	if md, err = ParseMetadata(line); err != nil {
 		return
 	}
-	*m = values
+	*m = md
 	return
 }
 

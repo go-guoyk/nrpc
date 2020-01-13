@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"net/url"
 	"strings"
 )
 
@@ -16,7 +15,7 @@ var (
 type Request struct {
 	Service  string
 	Method   string
-	Metadata url.Values
+	Metadata Metadata
 
 	// outgoing only
 	Payload interface{}
@@ -31,7 +30,7 @@ func NewRequest(service, method string) *Request {
 	return &Request{
 		Service:  strings.ToLower(strings.TrimSpace(service)),
 		Method:   strings.ToLower(strings.TrimSpace(method)),
-		Metadata: url.Values{},
+		Metadata: Metadata{},
 	}
 }
 

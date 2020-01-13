@@ -3,7 +3,6 @@ package nrpc
 import (
 	"encoding/json"
 	"io"
-	"net/url"
 	"strings"
 )
 
@@ -32,7 +31,7 @@ func EncodeHeadline(w io.Writer, subject1, subject2 string) (int, error) {
 	return w.Write(buf)
 }
 
-func EncodeMetadata(w io.Writer, metadata url.Values) (int, error) {
+func EncodeMetadata(w io.Writer, metadata Metadata) (int, error) {
 	buf := []byte(metadata.Encode())
 	buf = append(buf, '\n')
 	return w.Write(buf)

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"github.com/stretchr/testify/require"
 	"io"
-	"net/url"
 	"testing"
 )
 
@@ -41,26 +40,26 @@ func TestDecodeHeadline(t *testing.T) {
 func TestDecodeMetadata(t *testing.T) {
 	var r *bufio.Reader
 	var err error
-	var v url.Values
+	var m Metadata
 
 	r = bufio.NewReader(bytes.NewReader([]byte("hello")))
-	err = DecodeMetadata(r, &v)
+	err = DecodeMetadata(r, &m)
 	require.Equal(t, io.ErrUnexpectedEOF, err)
 
 	r = bufio.NewReader(bytes.NewReader([]byte("key1=val1\n")))
-	err = DecodeMetadata(r, &v)
+	err = DecodeMetadata(r, &m)
 	require.NoError(t, err)
-	require.Equal(t, "val1", v.Get("key1"))
+	require.Equal(t, "val1", m.Get("key1"))
 
-	v = nil
+	m = nil
 	r = bufio.NewReader(bytes.NewReader([]byte("\n")))
-	err = DecodeMetadata(r, &v)
+	err = DecodeMetadata(r, &m)
 	require.NoError(t, err)
-	require.NotNil(t, v)
+	require.NotNil(t, m)
 
-	v = nil
+	m = nil
 	r = bufio.NewReader(bytes.NewReader([]byte("==%%=\n")))
-	err = DecodeMetadata(r, &v)
+	err = DecodeMetadata(r, &m)
 	require.Error(t, err)
 }
 

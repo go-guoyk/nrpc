@@ -3,7 +3,6 @@ package nrpc
 import (
 	"bytes"
 	"github.com/stretchr/testify/require"
-	"net/url"
 	"testing"
 )
 
@@ -30,24 +29,24 @@ func TestEncodeHeadline(t *testing.T) {
 
 func TestEncodeMetadata(t *testing.T) {
 	var n int
-	var v url.Values
+	var m Metadata
 	var err error
 	var buf *bytes.Buffer
 	buf = &bytes.Buffer{}
-	n, err = EncodeMetadata(buf, v)
+	n, err = EncodeMetadata(buf, m)
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 	require.Equal(t, "\n", buf.String())
 	buf = &bytes.Buffer{}
-	v = url.Values{}
-	n, err = EncodeMetadata(buf, v)
+	m = Metadata{}
+	n, err = EncodeMetadata(buf, m)
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 	require.Equal(t, "\n", buf.String())
 	buf = &bytes.Buffer{}
-	v = url.Values{}
-	v.Set("hello", "world")
-	n, err = EncodeMetadata(buf, v)
+	m = Metadata{}
+	m.Set("hello", "world")
+	n, err = EncodeMetadata(buf, m)
 	require.NoError(t, err)
 	require.Equal(t, 12, n)
 	require.Equal(t, "hello=world\n", buf.String())

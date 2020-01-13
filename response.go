@@ -15,7 +15,7 @@ var (
 type Response struct {
 	Status   string
 	Message  string
-	Metadata url.Values
+	Metadata Metadata
 
 	// outgoing only
 	Payload interface{}
@@ -29,7 +29,7 @@ type Response struct {
 func NewResponse() *Response {
 	return &Response{
 		Status:   StatusOK,
-		Metadata: url.Values{},
+		Metadata: Metadata{},
 	}
 }
 
