@@ -10,12 +10,10 @@ import (
 
 type ServerOptions struct {
 	DefaultHandler Handler
-	MaxConns       int64
 }
 
 type Server struct {
 	defaultHandler Handler
-	maxConns       int64
 
 	services  map[string]map[string]Handler
 	listener  net.Listener
@@ -27,12 +25,8 @@ func NewServer(opts ServerOptions) *Server {
 	if opts.DefaultHandler == nil {
 		opts.DefaultHandler = NotFound
 	}
-	if opts.MaxConns <= 0 {
-		opts.MaxConns = 256
-	}
 	return &Server{
 		defaultHandler: opts.DefaultHandler,
-		maxConns:       opts.MaxConns,
 		services:       map[string]map[string]Handler{},
 		waitConns:      &sync.WaitGroup{},
 	}
@@ -69,20 +63,12 @@ func (s *Server) ServeConn(conn net.Conn) {
 	defer s.waitConns.Done()
 	defer conn.Close()
 
-	// check max connections
+	// update num conns
+	atomic.AddInt64(&s.numConns, 1)
 	defer atomic.AddInt64(&s.numConns, -1)
-	if atomic.AddInt64(&s.numConns, 1) > s.maxConns {
-		res := NewResponse()
-		res.Status = StatusErrOverloaded
-		res.Message = "max connections overloaded"
-		res.Metadata.Set(MetadataKeyHostname, hostname)
-		_, _ = res.WriteTo(conn)
-		return
-	}
-
-	var err error
 
 	// read request
+	var err error
 	var req *Request
 	if req, err = ReadRequest(conn); err != nil {
 		return
