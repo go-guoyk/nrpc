@@ -86,16 +86,8 @@ func (s *Server) ServeConn(conn net.Conn) {
 	// find handler
 	h := s.Handler(nreq.Service, nreq.Method)
 
-	// execute handler
-	if err = h.ServeNRPC(ctx, nreq, nres); err != nil {
-		if ne, ok := err.(*Error); ok {
-			nres.Status = ne.Status
-			nres.Message = ne.Message
-		} else {
-			nres.Status = StatusErrInternal
-			nres.Message = err.Error()
-		}
-	}
+	// invoke handler
+	_ = InvokeHandler(ctx, h, nreq, nres)
 
 	// write response
 	_, _ = nres.WriteTo(conn)

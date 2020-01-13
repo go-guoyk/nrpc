@@ -45,6 +45,9 @@ func ReadResponse(r io.Reader) (req *Response, err error) {
 		err = ErrMissingStatus
 		return
 	}
+	if req.Message, err = url.QueryUnescape(req.Message); err != nil {
+		return
+	}
 	req.Status = strings.ToLower(req.Status)
 	if err = DecodeMetadata(br, &req.Metadata); err != nil {
 		return
@@ -67,7 +70,7 @@ func (r *Response) WriteTo(w io.Writer) (tn int64, err error) {
 		return
 	}
 	var n int
-	if n, err = EncodeHeadline(w, r.Status, r.Message); err != nil {
+	if n, err = EncodeHeadline(w, r.Status, url.QueryEscape(r.Message)); err != nil {
 		return
 	}
 	tn += int64(n)

@@ -6,7 +6,7 @@ import (
 	"net"
 )
 
-func Invoke(ctx context.Context, addr string, nreq *Request, out interface{}) (nres *Response, err error) {
+func InvokeAddr(ctx context.Context, addr string, nreq *Request, out interface{}) (nres *Response, err error) {
 	var conn net.Conn
 	if conn, err = net.Dial("tcp", addr); err != nil {
 		return

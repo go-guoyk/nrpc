@@ -48,7 +48,7 @@ func (c *Client) Invoke(ctx context.Context, nreq *Request, out interface{}) (nr
 	err = backoff.Retry(func() (err error) {
 		// non-success is error too
 		tried++
-		if nres, err = Invoke(ctx, addr, nreq, out); err == nil {
+		if nres, err = InvokeAddr(ctx, addr, nreq, out); err == nil {
 			if nres.Status != StatusOK {
 				err = &Error{Status: nres.Status, Message: nres.Message, Tried: tried}
 			}
