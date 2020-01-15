@@ -34,7 +34,7 @@ func NewClient(opts ClientOptions) *Client {
 		opts.MaxRetries = 3
 	}
 	if opts.RoundTripper == nil {
-		opts.RoundTripper = SimpleTransport
+		opts.RoundTripper = DefaultTransport
 	}
 	return &Client{
 		roundTripper: opts.RoundTripper,

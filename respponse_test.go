@@ -7,12 +7,12 @@ import (
 )
 
 const sampleR1 = `hello,world
-key1=val1&key2=val2
+key1=val1;key2=val2
 {"hello":"world"}
 `
 
 const sampleR2 = ` hellO  , wOrld  
-  key1=val1&key2=val2  
+  key1=val1;key2=val2  
 {"hello":"world"}
 `
 

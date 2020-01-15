@@ -58,7 +58,7 @@ func TestDecodeMetadata(t *testing.T) {
 	require.NotNil(t, m)
 
 	m = nil
-	r = bufio.NewReader(bytes.NewReader([]byte("==%%=\n")))
+	r = bufio.NewReader(bytes.NewReader([]byte("key==%%=\n")))
 	err = DecodeMetadata(r, &m)
 	require.Error(t, err)
 }

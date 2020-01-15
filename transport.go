@@ -6,11 +6,11 @@ import (
 	"net"
 )
 
-var SimpleTransport RoundTripper = &simpleTransport{}
+var DefaultTransport RoundTripper = &Transport{}
 
-type simpleTransport struct{}
+type Transport struct{}
 
-func (st *simpleTransport) RoundTrip(ctx context.Context, addr string, nreq *Request, out interface{}) (nres *Response, err error) {
+func (st *Transport) RoundTrip(ctx context.Context, addr string, nreq *Request, out interface{}) (nres *Response, err error) {
 	var conn net.Conn
 	if conn, err = net.Dial("tcp", addr); err != nil {
 		return
