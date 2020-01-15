@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/cenkalti/backoff/v4"
+	"go.guoyk.net/trackid"
 	"sync"
 )
 
@@ -56,6 +57,10 @@ func (c *Client) Invoke(ctx context.Context, nreq *Request, out interface{}) (nr
 		err = ErrServiceNotRegistered
 		return
 	}
+
+	nreq.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
+	nreq.Metadata.Set(MetadataKeyHostname, hostname)
+
 	var tried int
 	err = backoff.Retry(func() (err error) {
 		// non-success is error too

@@ -2,7 +2,6 @@ package nrpc
 
 import (
 	"context"
-	"go.guoyk.net/trackid"
 	"net"
 )
 
@@ -16,9 +15,6 @@ func (st *Transport) RoundTrip(ctx context.Context, addr string, nreq *Request, 
 		return
 	}
 	defer conn.Close()
-
-	nreq.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
-	nreq.Metadata.Set(MetadataKeyHostname, hostname)
 
 	go nreq.WriteTo(conn)
 
