@@ -74,7 +74,7 @@ func TestServer_Shutdown(t *testing.T) {
 	}()
 	var nres *Response
 	var m map[string]string
-	nres, err = InvokeAddr(context.Background(), "127.0.0.1:17777", nreq, &m)
+	nres, err = SimpleTransport.RoundTrip(context.Background(), "127.0.0.1:17777", nreq, &m)
 	require.NoError(t, err)
 	require.Equal(t, "OK", nres.Message)
 	require.Equal(t, "World", m["Hello"])

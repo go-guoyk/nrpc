@@ -6,7 +6,11 @@ import (
 	"net"
 )
 
-func InvokeAddr(ctx context.Context, addr string, nreq *Request, out interface{}) (nres *Response, err error) {
+var SimpleTransport RoundTripper = &simpleTransport{}
+
+type simpleTransport struct{}
+
+func (st *simpleTransport) RoundTrip(ctx context.Context, addr string, nreq *Request, out interface{}) (nres *Response, err error) {
 	var conn net.Conn
 	if conn, err = net.Dial("tcp", addr); err != nil {
 		return
@@ -25,7 +29,7 @@ func InvokeAddr(ctx context.Context, addr string, nreq *Request, out interface{}
 		return
 	}
 
-	// unmarshal only on success
+	// Unmarshal only on success
 	if nres.Status == StatusOK {
 		if err = nres.Unmarshal(out); err != nil {
 			return
