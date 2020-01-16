@@ -9,50 +9,46 @@ import (
 )
 
 type ServerOptions struct {
-	DefaultHandler Handler
+	NotFound *Handler
 }
 
 type Server struct {
-	defaultHandler Handler
+	notFound *Handler
 
-	services  map[string]map[string]Handler
+	services  map[string]map[string]*Handler
 	listener  net.Listener
 	waitConns *sync.WaitGroup
 	numConns  int64
 }
 
 func NewServer(opts ServerOptions) *Server {
-	if opts.DefaultHandler == nil {
-		opts.DefaultHandler = NotFound
+	if opts.NotFound == nil {
+		opts.NotFound = NotFound
 	}
 	return &Server{
-		defaultHandler: opts.DefaultHandler,
-		services:       map[string]map[string]Handler{},
-		waitConns:      &sync.WaitGroup{},
+		notFound:  opts.NotFound,
+		services:  map[string]map[string]*Handler{},
+		waitConns: &sync.WaitGroup{},
 	}
 }
 
-func (s *Server) Handle(service string, method string, h Handler) {
+func (s *Server) Handle(service string, method string, h *Handler) {
 	svc := s.services[service]
 	if svc == nil {
-		svc = map[string]Handler{}
+		svc = map[string]*Handler{}
 		s.services[service] = svc
 	}
 	svc[method] = h
 }
 
-func (s *Server) HandleFunc(service string, method string, h HandlerFunc) {
-	s.Handle(service, method, h)
-}
-
-func (s *Server) Handler(service, method string) Handler {
+func (s *Server) resolve(service, method string) *Handler {
 	svc := s.services[service]
 	if svc == nil {
-		return s.defaultHandler
+		return s.notFound
 	} else {
 		h := svc[method]
 		if h == nil {
-			return s.defaultHandler
+			return s.notFound
 		} else {
 			return h
 		}
@@ -84,7 +80,7 @@ func (s *Server) ServeConn(conn net.Conn) {
 	nres.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
 
 	// find handler
-	h := s.Handler(nreq.Service, nreq.Method)
+	h := s.resolve(nreq.Service, nreq.Method)
 
 	// invoke handler
 	_ = InvokeHandler(ctx, h, nreq, nres)

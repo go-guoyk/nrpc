@@ -10,11 +10,13 @@ import (
 
 func TestServer_Handle(t *testing.T) {
 	s := NewServer(ServerOptions{})
-	s.HandleFunc("flake", "create", func(ctx context.Context, req *Request, res *Response) (err error) {
-		res.Status = StatusOK
-		res.Message = "OK"
-		res.Payload = json.RawMessage{'{', '}'}
-		return
+	s.Handle("flake", "create", &Handler{
+		Serve: func(ctx context.Context, req *Request, res *Response) (err error) {
+			res.Status = StatusOK
+			res.Message = "OK"
+			res.Payload = json.RawMessage{'{', '}'}
+			return
+		},
 	})
 	err := s.Start(":18898")
 	require.NoError(t, err)
@@ -36,9 +38,11 @@ func TestServer_Handle(t *testing.T) {
 
 func TestServer_HandlePanic(t *testing.T) {
 	s := NewServer(ServerOptions{})
-	s.HandleFunc("flake", "create", func(ctx context.Context, req *Request, res *Response) (err error) {
-		panic("test")
-		return
+	s.Handle("flake", "create", &Handler{
+		Serve: func(ctx context.Context, req *Request, res *Response) (err error) {
+			panic("test")
+			return
+		},
 	})
 	err := s.Start(":18878")
 	require.NoError(t, err)
@@ -59,11 +63,13 @@ func TestServer_HandlePanic(t *testing.T) {
 
 func TestServer_Shutdown(t *testing.T) {
 	s := NewServer(ServerOptions{})
-	s.HandleFunc("test", "test", func(ctx context.Context, req *Request, res *Response) (err error) {
-		time.Sleep(time.Second)
-		res.Message = "OK"
-		res.Payload = map[string]string{"Hello": "World"}
-		return
+	s.Handle("test", "test", &Handler{
+		Serve: func(ctx context.Context, req *Request, res *Response) (err error) {
+			time.Sleep(time.Second)
+			res.Message = "OK"
+			res.Payload = map[string]string{"Hello": "World"}
+			return
+		},
 	})
 	err := s.Start(":17777")
 	require.NoError(t, err)

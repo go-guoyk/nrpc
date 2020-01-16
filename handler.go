@@ -5,17 +5,23 @@ import (
 	"fmt"
 )
 
-type Handler interface {
-	ServeNRPC(ctx context.Context, nreq *Request, nres *Response) (err error)
+var (
+	NotFound = &Handler{
+		Alloc: nil,
+		Serve: func(ctx context.Context, nreq *Request, nres *Response) (err error) {
+			nres.Status = StatusErrNotImplemented
+			nres.Message = "service or method not implemented"
+			return
+		},
+	}
+)
+
+type Handler struct {
+	Alloc func() interface{}
+	Serve func(ctx context.Context, nreq *Request, nres *Response) (err error)
 }
 
-type HandlerFunc func(ctx context.Context, nreq *Request, nres *Response) (err error)
-
-func (h HandlerFunc) ServeNRPC(ctx context.Context, nreq *Request, nres *Response) error {
-	return h(ctx, nreq, nres)
-}
-
-func InvokeHandler(ctx context.Context, h Handler, nreq *Request, nres *Response) (err error) {
+func InvokeHandler(ctx context.Context, h *Handler, nreq *Request, nres *Response) (err error) {
 	// recover
 	defer func() {
 		if r := recover(); r != nil {
@@ -24,7 +30,17 @@ func InvokeHandler(ctx context.Context, h Handler, nreq *Request, nres *Response
 			err = &Error{Status: nres.Status, Message: nres.Message}
 		}
 	}()
-	if err = h.ServeNRPC(ctx, nreq, nres); err != nil {
+	// payload
+	var p interface{}
+	if h.Alloc != nil {
+		p = h.Alloc()
+	}
+	if err = nreq.Unmarshal(p); err != nil {
+		return
+	}
+	nreq.Payload = p
+	// execute
+	if err = h.Serve(ctx, nreq, nres); err != nil {
 		if ne, ok := err.(*Error); ok {
 			nres.Status = ne.Status
 			nres.Message = ne.Message
@@ -35,11 +51,3 @@ func InvokeHandler(ctx context.Context, h Handler, nreq *Request, nres *Response
 	}
 	return
 }
-
-var (
-	NotFound HandlerFunc = func(ctx context.Context, nreq *Request, nres *Response) (err error) {
-		nres.Status = StatusErrNotImplemented
-		nres.Message = "service or method not implemented"
-		return
-	}
-)

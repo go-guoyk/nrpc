@@ -8,11 +8,13 @@ import (
 
 func TestServer_HandleError(t *testing.T) {
 	s := NewServer(ServerOptions{})
-	s.HandleFunc("flake", "create", func(ctx context.Context, req *Request, res *Response) error {
-		return &Error{
-			Status:  StatusOK,
-			Message: "test",
-		}
+	s.Handle("flake", "create", &Handler{
+		Serve: func(ctx context.Context, nreq *Request, nres *Response) error {
+			return &Error{
+				Status:  StatusOK,
+				Message: "test",
+			}
+		},
 	})
 	err := s.Start(":18899")
 	require.NoError(t, err)

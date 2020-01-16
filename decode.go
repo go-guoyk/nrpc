@@ -25,7 +25,7 @@ func DecodeHeadline(br *bufio.Reader, val1, val2 *string) (err error) {
 	return
 }
 
-func DecodeMetadata(br *bufio.Reader, m *Metadata) (err error) {
+func DecodeMetadata(br *bufio.Reader, mOut *Metadata) (err error) {
 	var line string
 	if line, err = br.ReadString('\n'); err != nil {
 		if err == io.EOF {
@@ -35,21 +35,28 @@ func DecodeMetadata(br *bufio.Reader, m *Metadata) (err error) {
 	}
 	line = strings.TrimSpace(line)
 	if len(line) == 0 {
-		*m = Metadata{}
+		*mOut = Metadata{}
 		return
 	}
-	var md Metadata
-	if md, err = ParseMetadata(line); err != nil {
+	var m Metadata
+	if m, err = ParseMetadata(line); err != nil {
 		return
 	}
-	*m = md
+	*mOut = m
 	return
 }
 
-func DecodePayload(br *bufio.Reader, payload interface{}) error {
+func DecodePayload(br *bufio.Reader, payload interface{}) (err error) {
 	if payload == nil {
-		return nil
+		_, err = br.ReadBytes('\n')
+		return
 	}
 	dec := json.NewDecoder(br)
-	return dec.Decode(payload)
+	if err = dec.Decode(payload); err != nil {
+		return
+	}
+	r := io.MultiReader(dec.Buffered(), br)
+	nbr := bufio.NewReaderSize(r, 10)
+	_, err = nbr.ReadBytes('\n')
+	return
 }

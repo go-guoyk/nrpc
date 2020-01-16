@@ -68,11 +68,12 @@ func TestDecodePayload(t *testing.T) {
 	var err error
 	var v map[string]string
 
-	r = bufio.NewReader(bytes.NewReader([]byte(`{"hello":"world"}`)))
+	r = bufio.NewReader(bytes.NewReader([]byte(`{"hello":"world"}` + "\n")))
 	err = DecodePayload(r, &v)
 	require.NoError(t, err)
 	require.Equal(t, "world", v["hello"])
 
+	r = bufio.NewReader(bytes.NewReader([]byte("\n")))
 	err = DecodePayload(r, nil)
 	require.NoError(t, err)
 }

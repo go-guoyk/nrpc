@@ -6,5 +6,6 @@ const (
 
 	StatusErrOverloaded     = "err_overloaded"
 	StatusErrNotFound       = "err_not_found"
+	StatusErrBadRequest     = "err_bad_request"
 	StatusErrNotImplemented = "err_not_implemented"
 )
