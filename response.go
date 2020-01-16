@@ -1,86 +1,58 @@
 package nrpc
 
 import (
-	"bufio"
-	"errors"
 	"io"
-	"net/url"
-	"strings"
-)
-
-var (
-	ErrMissingStatus = errors.New("missing status")
 )
 
 type Response struct {
 	Status   string
-	Message  string
 	Metadata Metadata
-
-	// outgoing only
-	Payload interface{}
-
-	// incoming only
-	br *bufio.Reader
+	Message  string
+	Payload  interface{}
 }
 
-// NewResponse create a new outgoing response
-// outgoing only
+// NewResponse create a new response
 func NewResponse() *Response {
 	return &Response{
-		Status:   StatusOK,
 		Metadata: Metadata{},
 	}
 }
 
-// ReadResponse read a incoming response from io.Reader
-// incoming only
-func ReadResponse(r io.Reader) (req *Response, err error) {
-	req = &Response{}
-	br := bufio.NewReader(r)
-	if err = DecodeHeadline(br, &req.Status, &req.Message); err != nil {
+func (p *Response) Decode(buf []byte) (err error) {
+	if buf, err = decodeHeadline(buf, &p.Status); err != nil {
 		return
 	}
-	if len(req.Status) == 0 {
-		err = ErrMissingStatus
+	if buf, err = decodeMetadata(buf, &p.Metadata); err != nil {
 		return
 	}
-	if req.Message, err = url.QueryUnescape(req.Message); err != nil {
-		return
+	if p.Status == StatusOK {
+		if buf, err = decodePayload(buf, p.Payload); err != nil {
+			return
+		}
+	} else {
+		if buf, err = decodeMessage(buf, &p.Message); err != nil {
+			return
+		}
 	}
-	req.Status = strings.ToLower(req.Status)
-	if err = DecodeMetadata(br, &req.Metadata); err != nil {
-		return
-	}
-	req.br = br
 	return
 }
 
-// Unmarshal unmarshal the body
-// incoming only
-func (r *Response) Unmarshal(body interface{}) error {
-	return DecodePayload(r.br, body)
-}
-
 // WriteTo serialize the response into io.Writer
-// outgoing only
-func (r *Response) WriteTo(w io.Writer) (tn int64, err error) {
-	if len(r.Status) == 0 {
-		err = ErrMissingStatus
+func (p *Response) Encode(w io.Writer) (err error) {
+	if _, err = encodeHeadline(w, p.Status); err != nil {
 		return
 	}
-	var n int
-	if n, err = EncodeHeadline(w, r.Status, url.QueryEscape(r.Message)); err != nil {
+	if _, err = encodeMetadata(w, p.Metadata); err != nil {
 		return
 	}
-	tn += int64(n)
-	if n, err = EncodeMetadata(w, r.Metadata); err != nil {
-		return
+	if p.Status == StatusOK {
+		if _, err = encodePayload(w, p.Payload); err != nil {
+			return
+		}
+	} else {
+		if _, err = encodeMessage(w, p.Message); err != nil {
+			return
+		}
 	}
-	tn += int64(n)
-	if n, err = EncodePayload(w, r.Payload); err != nil {
-		return
-	}
-	tn += int64(n)
 	return
 }

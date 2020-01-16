@@ -12,12 +12,6 @@ var (
 	ErrServiceNotRegistered = errors.New("service not registered")
 )
 
-// RoundTripper abstract the execution of nrpc
-type RoundTripper interface {
-	// RoundTrip send the Request and receive the Response
-	RoundTrip(ctx context.Context, addr string, nreq *Request, out interface{}) (nres *Response, err error)
-}
-
 type ClientOptions struct {
 	MaxRetries   uint64
 	RoundTripper RoundTripper
@@ -65,7 +59,9 @@ func (c *Client) Invoke(ctx context.Context, nreq *Request, out interface{}) (nr
 	err = backoff.Retry(func() (err error) {
 		// non-success is error too
 		tried++
-		if nres, err = c.roundTripper.RoundTrip(ctx, addr, nreq, out); err == nil {
+		nres = NewResponse()
+		nres.Payload = out
+		if err = c.roundTripper.RoundTrip(ctx, addr, nreq, nres); err == nil {
 			if nres.Status != StatusOK {
 				err = &Error{Status: nres.Status, Message: nres.Message, Tried: tried}
 			}

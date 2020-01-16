@@ -1,48 +1,40 @@
 package nrpc
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
-	"strings"
+	"net/url"
 )
 
-type countableWriter struct {
-	w io.Writer
-	n *int
-}
-
-func (w *countableWriter) Write(p []byte) (n int, err error) {
-	n, err = w.w.Write(p)
-	*w.n += n
-	return
-}
-
-func EncodeHeadline(w io.Writer, subject1, subject2 string) (int, error) {
-	// no leading/trailing space is enforced here
-	subject1 = strings.TrimSpace(subject1)
-	subject2 = strings.TrimSpace(subject2)
-	buf := make([]byte, 0, len(subject1)+len(subject2)+2)
-	buf = append(buf, []byte(subject1)...)
-	if len(subject2) > 0 {
-		buf = append(buf, ',')
-		buf = append(buf, []byte(subject2)...)
+func encodeHeadline(w io.Writer, subs ...string) (int, error) {
+	buf := &bytes.Buffer{}
+	for _, s := range subs {
+		if buf.Len() > 0 {
+			buf.WriteRune(',')
+		}
+		buf.WriteString(s)
 	}
-	buf = append(buf, '\n')
+	buf.WriteRune('\n')
+	return w.Write(buf.Bytes())
+}
+
+func encodeMetadata(w io.Writer, metadata Metadata) (int, error) {
+	buf := append(metadata.Encode(), '\n')
 	return w.Write(buf)
 }
 
-func EncodeMetadata(w io.Writer, metadata Metadata) (int, error) {
-	buf := []byte(metadata.Encode())
-	buf = append(buf, '\n')
-	return w.Write(buf)
+func encodePayload(w io.Writer, payload interface{}) (int, error) {
+	var buf []byte
+	if payload != nil {
+		var err error
+		if buf, err = json.Marshal(payload); err != nil {
+			return 0, err
+		}
+	}
+	return w.Write(append(buf, '\n'))
 }
 
-func EncodePayload(w io.Writer, payload interface{}) (n int, err error) {
-	if payload == nil {
-		return w.Write([]byte{'\n'})
-	}
-	wc := &countableWriter{w: w, n: &n}
-	enc := json.NewEncoder(wc)
-	err = enc.Encode(payload)
-	return
+func encodeMessage(w io.Writer, message string) (int, error) {
+	return w.Write(append([]byte(url.QueryEscape(message)), '\n'))
 }

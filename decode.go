@@ -1,62 +1,72 @@
 package nrpc
 
 import (
-	"bufio"
+	"bytes"
 	"encoding/json"
 	"io"
-	"strings"
+	"net/url"
 )
 
-func DecodeHeadline(br *bufio.Reader, val1, val2 *string) (err error) {
-	var line string
-	if line, err = br.ReadString('\n'); err != nil {
-		if err == io.EOF {
-			err = io.ErrUnexpectedEOF
-		}
-		return
-	}
-	splits := strings.SplitN(line, ",", 2)
-	*val1 = strings.TrimSpace(splits[0])
-	if len(splits) > 1 {
-		*val2 = strings.TrimSpace(splits[1])
+func decodeLine(buf []byte) (line []byte, ret []byte, err error) {
+	ret = buf
+	if i := bytes.IndexByte(buf, '\n'); i < 0 {
+		err = io.ErrUnexpectedEOF
 	} else {
-		*val2 = ""
+		line, ret = bytes.TrimSpace(buf[:i]), buf[i+1:]
 	}
 	return
 }
 
-func DecodeMetadata(br *bufio.Reader, mOut *Metadata) (err error) {
-	var line string
-	if line, err = br.ReadString('\n'); err != nil {
-		if err == io.EOF {
-			err = io.ErrUnexpectedEOF
-		}
+func decodeHeadline(buf []byte, outs ...*string) (ret []byte, err error) {
+	var line []byte
+	if line, ret, err = decodeLine(buf); err != nil {
 		return
 	}
-	line = strings.TrimSpace(line)
-	if len(line) == 0 {
-		*mOut = Metadata{}
+	subs := bytes.SplitN(line, []byte{','}, len(outs))
+	for i, s := range outs {
+		if i >= len(subs) {
+			*s = ""
+		} else {
+			*s = string(bytes.TrimSpace(subs[i]))
+		}
+	}
+	return
+}
+
+func decodeMetadata(buf []byte, out *Metadata) (ret []byte, err error) {
+	var line []byte
+	if line, ret, err = decodeLine(buf); err != nil {
 		return
 	}
 	var m Metadata
 	if m, err = ParseMetadata(line); err != nil {
 		return
 	}
-	*mOut = m
+	*out = m
 	return
 }
 
-func DecodePayload(br *bufio.Reader, payload interface{}) (err error) {
-	if payload == nil {
-		_, err = br.ReadBytes('\n')
+func decodePayload(buf []byte, out interface{}) (ret []byte, err error) {
+	var line []byte
+	if line, ret, err = decodeLine(buf); err != nil {
 		return
 	}
-	dec := json.NewDecoder(br)
-	if err = dec.Decode(payload); err != nil {
+	if out == nil {
 		return
 	}
-	r := io.MultiReader(dec.Buffered(), br)
-	nbr := bufio.NewReaderSize(r, 10)
-	_, err = nbr.ReadBytes('\n')
+	if err = json.Unmarshal(line, out); err != nil {
+		return
+	}
+	return
+}
+
+func decodeMessage(buf []byte, out *string) (ret []byte, err error) {
+	var line []byte
+	if line, ret, err = decodeLine(buf); err != nil {
+		return
+	}
+	if *out, err = url.QueryUnescape(string(line)); err != nil {
+		return
+	}
 	return
 }

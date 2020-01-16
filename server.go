@@ -1,11 +1,8 @@
 package nrpc
 
 import (
-	"context"
-	"go.guoyk.net/trackid"
 	"net"
 	"sync"
-	"sync/atomic"
 )
 
 type ServerOptions struct {
@@ -56,37 +53,7 @@ func (s *Server) resolve(service, method string) *Handler {
 }
 
 func (s *Server) ServeConn(conn net.Conn) {
-	defer s.waitConns.Done()
-	defer conn.Close()
-
-	// update num conns
-	atomic.AddInt64(&s.numConns, 1)
-	defer atomic.AddInt64(&s.numConns, -1)
-
-	// read request
-	var err error
-	var nreq *Request
-	if nreq, err = ReadRequest(conn); err != nil {
-		return
-	}
-
-	// prepare context
-	ctx := context.Background()
-	ctx = trackid.Set(ctx, nreq.Metadata.Get(MetadataKeyTrackId))
-
-	// prepare response
-	nres := NewResponse()
-	nres.Metadata.Set(MetadataKeyHostname, hostname)
-	nres.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
-
-	// find handler
-	h := s.resolve(nreq.Service, nreq.Method)
-
-	// invoke handler
-	_ = InvokeHandler(ctx, h, nreq, nres)
-
-	// write response
-	_, _ = nres.WriteTo(conn)
+	// TODO: implements
 }
 
 func (s *Server) Serve(l net.Listener) (err error) {

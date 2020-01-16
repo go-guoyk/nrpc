@@ -1,93 +1,75 @@
 package nrpc
 
 import (
-	"bufio"
 	"errors"
 	"io"
-	"strings"
+	"regexp"
 )
 
 var (
-	ErrMissingService = errors.New("missing service")
-	ErrMissingMethod  = errors.New("missing method")
+	servicePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
+	methodPattern  = regexp.MustCompile(`^[a-z0-9_-]+$`)
+)
+
+var (
+	errInvalidServiceName = errors.New("invalid service name")
+	errInvalidMethodName  = errors.New("invalid method name")
 )
 
 type Request struct {
 	Service  string
 	Method   string
 	Metadata Metadata
-
-	// outgoing only
-	Payload interface{}
-
-	// incoming only
-	br *bufio.Reader
+	Payload  interface{}
 }
 
-// NewRequest create a new outgoing request
-// outgoing only
-func NewRequest(service, method string) *Request {
+// NewRequest create a new request
+func NewRequest() *Request {
 	return &Request{
-		Service:  strings.ToLower(strings.TrimSpace(service)),
-		Method:   strings.ToLower(strings.TrimSpace(method)),
 		Metadata: Metadata{},
 	}
 }
 
-// ReadRequest read a incoming request from io.Reader
-// incoming only
-func ReadRequest(r io.Reader) (req *Request, err error) {
-	req = &Request{}
-	br := bufio.NewReader(r)
-	if err = DecodeHeadline(br, &req.Service, &req.Method); err != nil {
+func (q *Request) Validate() (err error) {
+	if !servicePattern.MatchString(q.Service) {
+		err = errInvalidServiceName
 		return
 	}
-	if len(req.Service) == 0 {
-		err = ErrMissingService
+	if !methodPattern.MatchString(q.Method) {
+		err = errInvalidMethodName
 		return
 	}
-	req.Service = strings.ToLower(req.Service)
-	if len(req.Method) == 0 {
-		err = ErrMissingMethod
-		return
-	}
-	req.Method = strings.ToLower(req.Method)
-	if err = DecodeMetadata(br, &req.Metadata); err != nil {
-		return
-	}
-	req.br = br
 	return
 }
 
-// Unmarshal unmarshal the body
-// incoming only
-func (r *Request) Unmarshal(body interface{}) error {
-	return DecodePayload(r.br, body)
+func (q *Request) Decode(buf []byte) (err error) {
+	if buf, err = decodeHeadline(buf, &q.Service, &q.Method); err != nil {
+		return
+	}
+	if buf, err = decodeMetadata(buf, &q.Metadata); err != nil {
+		return
+	}
+	if buf, err = decodePayload(buf, q.Payload); err != nil {
+		return
+	}
+	if err = q.Validate(); err != nil {
+		return
+	}
+	return
 }
 
-// WriteTo serialize the request into io.Writer
-// outgoing only
-func (r *Request) WriteTo(w io.Writer) (tn int64, err error) {
-	if len(r.Service) == 0 {
-		err = ErrMissingService
+func (q *Request) Encode(w io.Writer) (err error) {
+	if err = q.Validate(); err != nil {
 		return
 	}
-	if len(r.Method) == 0 {
-		err = ErrMissingMethod
+	if _, err = encodeHeadline(w, q.Service, q.Method); err != nil {
 		return
 	}
-	var n int
-	if n, err = EncodeHeadline(w, r.Service, r.Method); err != nil {
+	if _, err = encodeMetadata(w, q.Metadata); err != nil {
 		return
 	}
-	tn += int64(n)
-	if n, err = EncodeMetadata(w, r.Metadata); err != nil {
+	if _, err = encodePayload(w, q.Payload); err != nil {
 		return
 	}
-	tn += int64(n)
-	if n, err = EncodePayload(w, r.Payload); err != nil {
-		return
-	}
-	tn += int64(n)
 	return
 }
