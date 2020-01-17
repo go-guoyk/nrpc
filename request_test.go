@@ -31,6 +31,7 @@ func TestRequest_Decode(t *testing.T) {
 	require.Equal(t, "MicroPC", r.Metadata.Get("hostname"))
 	require.Equal(t, "create", r.Method)
 	require.Equal(t, "flake", r.Service)
+	require.Equal(t, "world", s.Hello)
 }
 
 func TestRequest_Encode(t *testing.T) {
