@@ -1,7 +1,7 @@
 package nrpc
 
 import (
-	"errors"
+	"fmt"
 	"io"
 	"regexp"
 )
@@ -11,11 +11,6 @@ var (
 	methodPattern  = regexp.MustCompile(`^[a-z0-9_-]+$`)
 )
 
-var (
-	errInvalidServiceName = errors.New("invalid service name")
-	errInvalidMethodName  = errors.New("invalid method name")
-)
-
 type Request struct {
 	Service  string
 	Method   string
@@ -23,52 +18,49 @@ type Request struct {
 	Payload  interface{}
 }
 
-// NewRequest create a new request
 func NewRequest() *Request {
-	return &Request{
-		Metadata: Metadata{},
-	}
+	return &Request{Metadata: Metadata{}}
 }
 
-func (q *Request) Validate() (err error) {
-	if !servicePattern.MatchString(q.Service) {
-		err = errInvalidServiceName
+func (r *Request) Validate() (err error) {
+	if !servicePattern.MatchString(r.Service) {
+		err = fmt.Errorf("invalid service name: %s", r.Service)
 		return
 	}
-	if !methodPattern.MatchString(q.Method) {
-		err = errInvalidMethodName
+	if !methodPattern.MatchString(r.Method) {
+		err = fmt.Errorf("invalid method name: %s", r.Method)
 		return
 	}
 	return
 }
 
-func (q *Request) Decode(buf []byte) (err error) {
-	if buf, err = decodeHeadline(buf, &q.Service, &q.Method); err != nil {
+func (r *Request) Decode(buf []byte) (err error) {
+	if buf, err = decodeHeadline(buf, &r.Service, &r.Method); err != nil {
 		return
 	}
-	if buf, err = decodeMetadata(buf, &q.Metadata); err != nil {
+	if buf, err = decodeMetadata(buf, &r.Metadata); err != nil {
 		return
 	}
-	if buf, err = decodePayload(buf, q.Payload); err != nil {
+	if buf, err = decodePayload(buf, r.Payload); err != nil {
 		return
 	}
-	if err = q.Validate(); err != nil {
+	if err = r.Validate(); err != nil {
 		return
 	}
 	return
 }
 
-func (q *Request) Encode(w io.Writer) (err error) {
-	if err = q.Validate(); err != nil {
+func (r *Request) Encode(w io.Writer) (err error) {
+	if err = r.Validate(); err != nil {
 		return
 	}
-	if _, err = encodeHeadline(w, q.Service, q.Method); err != nil {
+	if _, err = encodeHeadline(w, r.Service, r.Method); err != nil {
 		return
 	}
-	if _, err = encodeMetadata(w, q.Metadata); err != nil {
+	if _, err = encodeMetadata(w, r.Metadata); err != nil {
 		return
 	}
-	if _, err = encodePayload(w, q.Payload); err != nil {
+	if _, err = encodePayload(w, r.Payload); err != nil {
 		return
 	}
 	return

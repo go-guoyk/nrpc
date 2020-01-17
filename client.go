@@ -59,7 +59,7 @@ func (c *Client) Invoke(ctx context.Context, nreq *Request, out interface{}) (nr
 	err = backoff.Retry(func() (err error) {
 		// non-success is error too
 		tried++
-		nres = NewResponse()
+		nres = &Response{}
 		nres.Payload = out
 		if err = c.roundTripper.RoundTrip(ctx, addr, nreq, nres); err == nil {
 			if nres.Status != StatusOK {
