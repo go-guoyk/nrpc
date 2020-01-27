@@ -1,90 +1,58 @@
 package nrpc
 
 import (
-	"net"
-	"sync"
+	"context"
+	"fmt"
+	"net/http"
+	"reflect"
 )
 
 type ServerOptions struct {
-	NotFound *Handler
+	Addr string
 }
 
 type Server struct {
-	notFound *Handler
+	s   *http.Server
+	mux *http.ServeMux
+}
 
-	services  map[string]map[string]*Handler
-	listener  net.Listener
-	waitConns *sync.WaitGroup
-	numConns  int64
+// Register register a rpc object with default name
+func (s *Server) Register(r interface{}) {
+	t := reflect.TypeOf(r)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	s.RegisterName(t.Name(), r)
+}
+
+// RegisterName register a rpc object with given name
+func (s *Server) RegisterName(name string, r interface{}) {
+	hs := ExtractHandlers(name, r)
+	for m, h := range hs {
+		s.mux.Handle(fmt.Sprintf("/%s/%s", name, m), h)
+	}
 }
 
 func NewServer(opts ServerOptions) *Server {
-	if opts.NotFound == nil {
-		opts.NotFound = NotFound
+	if opts.Addr == "" {
+		opts.Addr = ":3000"
 	}
+	mux := http.NewServeMux()
 	return &Server{
-		notFound:  opts.NotFound,
-		services:  map[string]map[string]*Handler{},
-		waitConns: &sync.WaitGroup{},
+		s: &http.Server{
+			Addr:    opts.Addr,
+			Handler: mux,
+		},
+		mux: mux,
 	}
 }
 
-func (s *Server) Handle(service string, method string, h *Handler) {
-	svc := s.services[service]
-	if svc == nil {
-		svc = map[string]*Handler{}
-		s.services[service] = svc
-	}
-	svc[method] = h
+func (s *Server) Start(ech chan error) {
+	go func() {
+		ech <- s.s.ListenAndServe()
+	}()
 }
 
-func (s *Server) resolve(service, method string) *Handler {
-	svc := s.services[service]
-	if svc == nil {
-		return s.notFound
-	} else {
-		h := svc[method]
-		if h == nil {
-			return s.notFound
-		} else {
-			return h
-		}
-	}
-}
-
-func (s *Server) ServeConn(conn net.Conn) {
-	// TODO: implements
-}
-
-func (s *Server) Serve(l net.Listener) (err error) {
-	for {
-		var conn net.Conn
-		if conn, err = l.Accept(); err != nil {
-			return
-		}
-		s.waitConns.Add(1)
-		go s.ServeConn(conn)
-	}
-}
-
-func (s *Server) Start(addr string) (err error) {
-	if s.listener != nil {
-		return
-	}
-	var l net.Listener
-	if l, err = net.Listen("tcp", addr); err != nil {
-		return
-	}
-	s.listener = l
-	go s.Serve(l)
-	return
-}
-
-func (s *Server) Shutdown() {
-	if s.listener == nil {
-		return
-	}
-	_ = s.listener.Close()
-	s.listener = nil
-	s.waitConns.Wait()
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.s.Shutdown(ctx)
 }
