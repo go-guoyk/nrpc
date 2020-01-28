@@ -2,8 +2,9 @@ package nrpc
 
 import (
 	"context"
-	"fmt"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
+	"net/http/pprof"
 	"reflect"
 )
 
@@ -14,6 +15,7 @@ type ServerOptions struct {
 type Server struct {
 	s   *http.Server
 	mux *http.ServeMux
+	hcs *HealthChecks
 }
 
 // Register register a rpc object with default name
@@ -27,9 +29,14 @@ func (s *Server) Register(r interface{}) {
 
 // RegisterName register a rpc object with given name
 func (s *Server) RegisterName(name string, r interface{}) {
+	// add health check
+	if hc, ok := r.(HealthCheck); ok {
+		s.hcs.Add(hc)
+	}
+	// extract and add handlers
 	hs := ExtractHandlers(name, r)
 	for m, h := range hs {
-		s.mux.Handle(fmt.Sprintf("/%s/%s", name, m), h)
+		s.mux.Handle("/"+name+"/"+m, h)
 	}
 }
 
@@ -38,11 +45,23 @@ func NewServer(opts ServerOptions) *Server {
 		opts.Addr = ":3000"
 	}
 	mux := http.NewServeMux()
+	hcs := &HealthChecks{}
+	// mount pprof
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	// mount prometheus
+	mux.Handle("/metrics", promhttp.Handler())
+	// mount healthz
+	mux.Handle("/healthz", hcs)
 	return &Server{
 		s: &http.Server{
 			Addr:    opts.Addr,
 			Handler: mux,
 		},
+		hcs: hcs,
 		mux: mux,
 	}
 }
