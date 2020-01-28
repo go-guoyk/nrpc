@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/stretchr/testify/require"
 	"testing"
+	"time"
 )
 
 func TestClient_Call(t *testing.T) {
@@ -11,6 +12,8 @@ func TestClient_Call(t *testing.T) {
 	s.Register(&TestService{})
 	go s.Start(nil)
 	defer s.Shutdown(context.Background())
+
+	time.Sleep(time.Second)
 
 	c := NewClient(ClientOptions{MaxRetries: 1})
 	c.Register("TestService", "127.0.0.1:10087")

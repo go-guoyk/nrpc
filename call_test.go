@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestCall_Do(t *testing.T) {
@@ -12,6 +13,8 @@ func TestCall_Do(t *testing.T) {
 	s.Register(&TestService{})
 	s.Start(nil)
 	defer s.Shutdown(context.Background())
+
+	time.Sleep(time.Second)
 
 	c := &Call{
 		client:  http.DefaultClient,

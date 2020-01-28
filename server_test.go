@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 type IDNewIn struct {
@@ -32,6 +33,8 @@ func TestServer(t *testing.T) {
 	s.Register(&IDService{})
 	s.Start(nil)
 	defer s.Shutdown(context.Background())
+
+	time.Sleep(time.Second)
 
 	resp, err := http.Get("http://127.0.0.1:10888/IDService/New?count=2")
 	require.NoError(t, err)
