@@ -15,6 +15,9 @@ func (ue *userError) Error() string {
 }
 
 func IsUserError(err error) bool {
+	if err == nil {
+		return false
+	}
 	_, ok := err.(interface{ IsUserError() })
 	return ok
 }
@@ -22,6 +25,9 @@ func IsUserError(err error) bool {
 func UserError(err error) error {
 	if err == nil {
 		return nil
+	}
+	if IsUserError(err) {
+		return err
 	}
 	return &userError{err: err}
 }
