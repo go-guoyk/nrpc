@@ -18,7 +18,9 @@ type Client struct {
 }
 
 func NewClient(opts ClientOptions) *Client {
-	if opts.MaxRetries <= 0 {
+	if opts.MaxRetries < 0 {
+		opts.MaxRetries = 0
+	} else if opts.MaxRetries == 0 {
 		opts.MaxRetries = 3
 	}
 	if opts.Timeout == 0 {
