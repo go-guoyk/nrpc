@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/go-playground/form/v4"
 	"go.guoyk.net/trackid"
 	"io"
@@ -36,21 +37,12 @@ func (c *Call) Out(ptr interface{}) *Call {
 	return c
 }
 
-func (c *Call) Do(ctx context.Context) (err error) {
-	if c.host == "" {
-		err = UserError(fmt.Errorf("unknown host for service '%s'", c.service))
-		return
-	}
-
-	// build url
+func (c *Call) buildRequest(ctx context.Context) (req *http.Request, err error) {
 	uri := &url.URL{
 		Scheme: "http",
 		Host:   c.host,
 		Path:   "/" + c.service + "/" + c.method,
 	}
-
-	// build request
-	var req *http.Request
 
 	if c.command {
 		if c.in == nil {
@@ -87,7 +79,10 @@ func (c *Call) Do(ctx context.Context) (err error) {
 
 	// correlation id
 	req.Header.Set(headerCorrelationID, trackid.Get(ctx))
+	return
+}
 
+func (c *Call) do(req *http.Request) (err error) {
 	// execute request
 	var resp *http.Response
 	if resp, err = c.client.Do(req); err != nil {
@@ -96,12 +91,12 @@ func (c *Call) Do(ctx context.Context) (err error) {
 	defer resp.Body.Close()
 
 	// on error
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= http.StatusBadRequest {
 		sb := &strings.Builder{}
 		if _, err = io.Copy(sb, resp.Body); err != nil {
 			return
 		}
-		if resp.StatusCode >= 400 && resp.StatusCode < 400 {
+		if resp.StatusCode < http.StatusInternalServerError {
 			err = UserError(errors.New(sb.String()))
 		} else {
 			err = errors.New(sb.String())
@@ -112,7 +107,7 @@ func (c *Call) Do(ctx context.Context) (err error) {
 	// if out is required
 	if c.out != nil {
 		if !strings.HasPrefix(resp.Header.Get(headerContentType), mimeApplicationJSON) {
-			err = errors.New("not a application/json response")
+			err = errors.New("not a json response")
 			return
 		}
 		dec := json.NewDecoder(resp.Body)
@@ -120,6 +115,34 @@ func (c *Call) Do(ctx context.Context) (err error) {
 			return
 		}
 	}
+	return
+}
+
+func (c *Call) Do(ctx context.Context) (err error) {
+	if c.host == "" {
+		err = UserError(fmt.Errorf("unknown host for service '%s'", c.service))
+		return
+	}
+
+	var req *http.Request
+	if req, err = c.buildRequest(ctx); err != nil {
+		return
+	}
+
+	bo := backoff.WithContext(
+		backoff.WithMaxRetries(
+			backoff.NewExponentialBackOff(),
+			uint64(c.maxRetries)),
+		ctx,
+	)
+
+	err = backoff.Retry(func() error {
+		err := c.do(req)
+		if IsUserError(err) {
+			err = backoff.Permanent(err)
+		}
+		return err
+	}, bo)
 
 	return
 }
