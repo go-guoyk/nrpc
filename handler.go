@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/creasty/defaults"
 	"github.com/go-playground/form/v4"
 	"github.com/go-playground/validator/v10"
 	"go.guoyk.net/trackid"
@@ -158,6 +159,11 @@ func (h *Handler) buildArgs(ctx context.Context, req *http.Request) (args []refl
 			}
 		} else {
 			err = UserError(fmt.Errorf("invalid http method: %s", req.Method))
+			return
+		}
+		// defaults
+		if err = defaults.Set(v); err != nil {
+			err = UserError(err)
 			return
 		}
 		// validate

@@ -49,7 +49,11 @@ func NewServer(opts ServerOptions) *Server {
 
 func (s *Server) Start(ech chan error) {
 	go func() {
-		ech <- s.s.ListenAndServe()
+		if ech != nil {
+			ech <- s.s.ListenAndServe()
+		} else {
+			_ = s.s.ListenAndServe()
+		}
 	}()
 }
 
