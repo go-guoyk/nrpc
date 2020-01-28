@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"testing"
 )
 
@@ -62,6 +63,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	buf := []byte(`{"hello":"world"}`)
 	rw = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "http://localhost:3000/TestService/Method2", bytes.NewReader(buf))
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set("Content-Length", strconv.Itoa(len(buf)))
 	hs["Method2"].ServeHTTP(rw, req)
 	assert.Equal(t, "test error: world", rw.Body.String())
 	assert.Equal(t, http.StatusBadRequest, rw.Code)
@@ -71,6 +74,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	buf = []byte(`{"hello":"world"}`)
 	rw = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "http://localhost:3000/TestService/Method3", bytes.NewReader(buf))
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set("Content-Length", strconv.Itoa(len(buf)))
 	hs["Method3"].ServeHTTP(rw, req)
 	assert.Equal(t, `{"hello":"world"}`, rw.Body.String())
 	assert.Equal(t, http.StatusOK, rw.Code)
@@ -81,6 +86,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	rw = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "http://localhost:3000/TestService/Method4", bytes.NewReader(buf))
 	hs["Method4"].ServeHTTP(rw, req)
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	req.Header.Set("Content-Length", strconv.Itoa(len(buf)))
 	assert.Equal(t, `{"hello":"world"}`, rw.Body.String())
 	assert.Equal(t, http.StatusOK, rw.Code)
 	assert.Equal(t, "application/json; charset=utf-8", rw.Header().Get("Content-Type"))

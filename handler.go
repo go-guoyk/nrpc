@@ -18,6 +18,14 @@ const (
 	HeaderCorrelationID = "X-Correlation-Id"
 )
 
+const (
+	charsetUTF8                    = "charset=utf-8"
+	mimeTextPlain                  = "text/plain"
+	mimeTextPlainCharsetUTF8       = mimeTextPlain + "; " + charsetUTF8
+	mimeApplicationJSON            = "application/json"
+	mimeApplicationJSONCharsetUTF8 = mimeApplicationJSON + "; " + charsetUTF8
+)
+
 type Handler struct {
 	svc string
 	mtd string
@@ -88,7 +96,7 @@ func sendError(rw http.ResponseWriter, err error) {
 		code = http.StatusBadRequest
 	}
 	buf := []byte(err.Error())
-	rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	rw.Header().Set("Content-Type", mimeTextPlainCharsetUTF8)
 	rw.Header().Set("Content-Length", strconv.Itoa(len(buf)))
 	rw.WriteHeader(code)
 	_, _ = rw.Write(buf)
@@ -101,34 +109,14 @@ func sendBody(rw http.ResponseWriter, body interface{}) {
 		if buf, err := json.Marshal(body); err != nil {
 			sendError(rw, err)
 		} else {
-			rw.Header().Set("Content-Type", "application/json; charset=utf-8")
+			rw.Header().Set("Content-Type", mimeApplicationJSONCharsetUTF8)
 			rw.Header().Set("Content-Length", strconv.Itoa(len(buf)))
 			_, _ = rw.Write(buf)
 		}
 	}
 }
 
-func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	// setup correlation id
-	ctx := trackid.Set(req.Context(), req.Header.Get(HeaderCorrelationID))
-	rw.Header().Set(HeaderCorrelationID, trackid.Get(ctx))
-
-	// build args
-	args := []reflect.Value{reflect.ValueOf(h.tgt), reflect.ValueOf(ctx)}
-	if h.in != nil {
-		v := reflect.New(h.in).Interface()
-		dec := json.NewDecoder(req.Body)
-		if err := dec.Decode(v); err != nil {
-			sendError(rw, err)
-			return
-		}
-		args = append(args, reflect.ValueOf(v))
-	}
-
-	// call
-	rets := h.fn.Call(args)
-
-	// build response
+func sendValues(rw http.ResponseWriter, rets []reflect.Value) {
 	var err error
 	var out interface{}
 	if len(rets) == 1 {
@@ -146,4 +134,34 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	} else {
 		sendBody(rw, out)
 	}
+}
+
+func (h *Handler) buildArgs(ctx context.Context, req *http.Request) (args []reflect.Value, err error) {
+	args = []reflect.Value{reflect.ValueOf(h.tgt), reflect.ValueOf(ctx)}
+	if h.in != nil {
+		v := reflect.New(h.in).Interface()
+		dec := json.NewDecoder(req.Body)
+		if err = dec.Decode(v); err != nil {
+			err = UserError(err)
+			return
+		}
+		args = append(args, reflect.ValueOf(v))
+	}
+	return
+}
+
+func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	// correlation id
+	ctx := trackid.Set(req.Context(), req.Header.Get(HeaderCorrelationID))
+	rw.Header().Set(HeaderCorrelationID, trackid.Get(ctx))
+
+	args, err := h.buildArgs(ctx, req)
+	if err != nil {
+		sendError(rw, err)
+		return
+	}
+
+	rets := h.fn.Call(args)
+
+	sendValues(rw, rets)
 }
