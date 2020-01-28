@@ -14,7 +14,7 @@ import (
 )
 
 type TestIn struct {
-	Hello string `json:"hello"`
+	Hello string `json:"hello" query:"hell"`
 }
 
 type TestOut struct {
@@ -58,7 +58,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	assert.Equal(t, "test error", rw.Body.String())
 	assert.Equal(t, http.StatusInternalServerError, rw.Code)
 	assert.Equal(t, "text/plain; charset=utf-8", rw.Header().Get("Content-Type"))
-	assert.NotEmpty(t, rw.Header().Get(HeaderCorrelationID))
+	assert.NotEmpty(t, rw.Header().Get(headerCorrelationID))
 
 	buf := []byte(`{"hello":"world"}`)
 	rw = httptest.NewRecorder()
@@ -69,18 +69,15 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	assert.Equal(t, "test error: world", rw.Body.String())
 	assert.Equal(t, http.StatusBadRequest, rw.Code)
 	assert.Equal(t, "text/plain; charset=utf-8", rw.Header().Get("Content-Type"))
-	assert.NotEmpty(t, rw.Header().Get(HeaderCorrelationID))
+	assert.NotEmpty(t, rw.Header().Get(headerCorrelationID))
 
-	buf = []byte(`{"hello":"world"}`)
 	rw = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "http://localhost:3000/TestService/Method3", bytes.NewReader(buf))
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Content-Length", strconv.Itoa(len(buf)))
+	req = httptest.NewRequest(http.MethodGet, "http://localhost:3000/TestService/Method3?hell=world", bytes.NewReader(buf))
 	hs["Method3"].ServeHTTP(rw, req)
 	assert.Equal(t, `{"hello":"world"}`, rw.Body.String())
 	assert.Equal(t, http.StatusOK, rw.Code)
 	assert.Equal(t, "application/json; charset=utf-8", rw.Header().Get("Content-Type"))
-	assert.NotEmpty(t, rw.Header().Get(HeaderCorrelationID))
+	assert.NotEmpty(t, rw.Header().Get(headerCorrelationID))
 
 	buf = []byte(`something not json`)
 	rw = httptest.NewRecorder()
@@ -91,5 +88,5 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	assert.Equal(t, `{"hello":"world"}`, rw.Body.String())
 	assert.Equal(t, http.StatusOK, rw.Code)
 	assert.Equal(t, "application/json; charset=utf-8", rw.Header().Get("Content-Type"))
-	assert.NotEmpty(t, rw.Header().Get(HeaderCorrelationID))
+	assert.NotEmpty(t, rw.Header().Get(headerCorrelationID))
 }

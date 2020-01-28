@@ -3,6 +3,9 @@ package nrpc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/go-playground/form/v4"
+	"github.com/go-playground/validator/v10"
 	"go.guoyk.net/trackid"
 	"net/http"
 	"reflect"
@@ -15,15 +18,15 @@ var (
 )
 
 const (
-	HeaderCorrelationID = "X-Correlation-Id"
-)
-
-const (
 	charsetUTF8                    = "charset=utf-8"
 	mimeTextPlain                  = "text/plain"
 	mimeTextPlainCharsetUTF8       = mimeTextPlain + "; " + charsetUTF8
 	mimeApplicationJSON            = "application/json"
 	mimeApplicationJSONCharsetUTF8 = mimeApplicationJSON + "; " + charsetUTF8
+
+	headerCorrelationID = "X-Correlation-Id"
+	headerContentType   = "Content-Type"
+	headerContentLength = "Content-Length"
 )
 
 type Handler struct {
@@ -96,8 +99,8 @@ func sendError(rw http.ResponseWriter, err error) {
 		code = http.StatusBadRequest
 	}
 	buf := []byte(err.Error())
-	rw.Header().Set("Content-Type", mimeTextPlainCharsetUTF8)
-	rw.Header().Set("Content-Length", strconv.Itoa(len(buf)))
+	rw.Header().Set(headerContentType, mimeTextPlainCharsetUTF8)
+	rw.Header().Set(headerContentLength, strconv.Itoa(len(buf)))
 	rw.WriteHeader(code)
 	_, _ = rw.Write(buf)
 }
@@ -109,8 +112,8 @@ func sendBody(rw http.ResponseWriter, body interface{}) {
 		if buf, err := json.Marshal(body); err != nil {
 			sendError(rw, err)
 		} else {
-			rw.Header().Set("Content-Type", mimeApplicationJSONCharsetUTF8)
-			rw.Header().Set("Content-Length", strconv.Itoa(len(buf)))
+			rw.Header().Set(headerContentType, mimeApplicationJSONCharsetUTF8)
+			rw.Header().Set(headerContentLength, strconv.Itoa(len(buf)))
 			_, _ = rw.Write(buf)
 		}
 	}
@@ -140,8 +143,26 @@ func (h *Handler) buildArgs(ctx context.Context, req *http.Request) (args []refl
 	args = []reflect.Value{reflect.ValueOf(h.tgt), reflect.ValueOf(ctx)}
 	if h.in != nil {
 		v := reflect.New(h.in).Interface()
-		dec := json.NewDecoder(req.Body)
-		if err = dec.Decode(v); err != nil {
+		if req.Method == http.MethodGet {
+			dec := form.NewDecoder()
+			dec.SetTagName("query")
+			if err = dec.Decode(v, req.URL.Query()); err != nil {
+				err = UserError(err)
+				return
+			}
+		} else if req.Method == http.MethodPost {
+			dec := json.NewDecoder(req.Body)
+			if err = dec.Decode(v); err != nil {
+				err = UserError(err)
+				return
+			}
+		} else {
+			err = UserError(fmt.Errorf("invalid http method: %s", req.Method))
+			return
+		}
+		// validate
+		val := validator.New()
+		if err = val.Struct(v); err != nil {
 			err = UserError(err)
 			return
 		}
@@ -152,8 +173,8 @@ func (h *Handler) buildArgs(ctx context.Context, req *http.Request) (args []refl
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// correlation id
-	ctx := trackid.Set(req.Context(), req.Header.Get(HeaderCorrelationID))
-	rw.Header().Set(HeaderCorrelationID, trackid.Get(ctx))
+	ctx := trackid.Set(req.Context(), req.Header.Get(headerCorrelationID))
+	rw.Header().Set(headerCorrelationID, trackid.Get(ctx))
 
 	args, err := h.buildArgs(ctx, req)
 	if err != nil {
