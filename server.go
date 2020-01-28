@@ -2,122 +2,80 @@ package nrpc
 
 import (
 	"context"
-	"go.guoyk.net/trackid"
-	"net"
-	"sync"
-	"sync/atomic"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"net/http"
+	"net/http/pprof"
+	"reflect"
 )
 
 type ServerOptions struct {
-	NotFound *Handler
+	Addr string
 }
 
 type Server struct {
-	notFound *Handler
+	s   *http.Server
+	mux *http.ServeMux
+	hcs *HealthChecks
+}
 
-	services  map[string]map[string]*Handler
-	listener  net.Listener
-	waitConns *sync.WaitGroup
-	numConns  int64
+// Register register a rpc object with default name
+func (s *Server) Register(r interface{}) {
+	t := reflect.TypeOf(r)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	s.RegisterName(t.Name(), r)
+}
+
+// RegisterName register a rpc object with given name
+func (s *Server) RegisterName(name string, r interface{}) {
+	// add health check
+	if hc, ok := r.(HealthCheck); ok {
+		s.hcs.Add(hc)
+	}
+	// extract and add handlers
+	hs := ExtractHandlers(name, r)
+	for m, h := range hs {
+		s.mux.Handle("/"+name+"/"+m, h)
+	}
 }
 
 func NewServer(opts ServerOptions) *Server {
-	if opts.NotFound == nil {
-		opts.NotFound = NotFound
+	if opts.Addr == "" {
+		opts.Addr = ":3000"
 	}
+	mux := http.NewServeMux()
+	hcs := &HealthChecks{}
+	// mount pprof
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	// mount prometheus
+	mux.Handle("/metrics", promhttp.Handler())
+	// mount healthz
+	mux.Handle("/healthz", hcs)
 	return &Server{
-		notFound:  opts.NotFound,
-		services:  map[string]map[string]*Handler{},
-		waitConns: &sync.WaitGroup{},
+		s: &http.Server{
+			Addr:    opts.Addr,
+			Handler: mux,
+		},
+		hcs: hcs,
+		mux: mux,
 	}
 }
 
-func (s *Server) Handle(service string, method string, h *Handler) {
-	svc := s.services[service]
-	if svc == nil {
-		svc = map[string]*Handler{}
-		s.services[service] = svc
-	}
-	svc[method] = h
-}
-
-func (s *Server) resolve(service, method string) *Handler {
-	svc := s.services[service]
-	if svc == nil {
-		return s.notFound
-	} else {
-		h := svc[method]
-		if h == nil {
-			return s.notFound
+func (s *Server) Start(ech chan error) {
+	go func() {
+		if ech != nil {
+			ech <- s.s.ListenAndServe()
 		} else {
-			return h
+			_ = s.s.ListenAndServe()
 		}
-	}
+	}()
 }
 
-func (s *Server) ServeConn(conn net.Conn) {
-	defer s.waitConns.Done()
-	defer conn.Close()
-
-	// update num conns
-	atomic.AddInt64(&s.numConns, 1)
-	defer atomic.AddInt64(&s.numConns, -1)
-
-	// read request
-	var err error
-	var nreq *Request
-	if nreq, err = ReadRequest(conn); err != nil {
-		return
-	}
-
-	// prepare context
-	ctx := context.Background()
-	ctx = trackid.Set(ctx, nreq.Metadata.Get(MetadataKeyTrackId))
-
-	// prepare response
-	nres := NewResponse()
-	nres.Metadata.Set(MetadataKeyHostname, hostname)
-	nres.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
-
-	// find handler
-	h := s.resolve(nreq.Service, nreq.Method)
-
-	// invoke handler
-	_ = InvokeHandler(ctx, h, nreq, nres)
-
-	// write response
-	_, _ = nres.WriteTo(conn)
-}
-
-func (s *Server) Serve(l net.Listener) (err error) {
-	for {
-		var conn net.Conn
-		if conn, err = l.Accept(); err != nil {
-			return
-		}
-		s.waitConns.Add(1)
-		go s.ServeConn(conn)
-	}
-}
-
-func (s *Server) Start(addr string) (err error) {
-	if s.listener != nil {
-		return
-	}
-	var l net.Listener
-	if l, err = net.Listen("tcp", addr); err != nil {
-		return
-	}
-	s.listener = l
-	go s.Serve(l)
-	return
-}
-
-func (s *Server) Shutdown() {
-	if s.listener == nil {
-		return
-	}
-	_ = s.listener.Close()
-	s.listener = nil
-	s.waitConns.Wait()
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.s.Shutdown(ctx)
 }

@@ -1,17 +1,33 @@
 package nrpc
 
-import "fmt"
-
-type Error struct {
-	Status  string
-	Message string
-	Tried   int
+type userError struct {
+	err error
 }
 
-func (e *Error) Error() string {
-	if e.Tried > 0 {
-		return fmt.Sprintf("%s (tried %d times): %s", e.Status, e.Tried, e.Message)
-	} else {
-		return fmt.Sprintf("%s: %s", e.Status, e.Message)
+func (ue *userError) IsUserError() {}
+
+func (ue *userError) Unwrap() error {
+	return ue.err
+}
+
+func (ue *userError) Error() string {
+	return ue.err.Error()
+}
+
+func IsUserError(err error) bool {
+	if err == nil {
+		return false
 	}
+	_, ok := err.(interface{ IsUserError() })
+	return ok
+}
+
+func UserError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if IsUserError(err) {
+		return err
+	}
+	return &userError{err: err}
 }

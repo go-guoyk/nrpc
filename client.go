@@ -1,83 +1,62 @@
 package nrpc
 
 import (
-	"context"
-	"errors"
-	"github.com/cenkalti/backoff/v4"
-	"go.guoyk.net/trackid"
-	"sync"
+	"net"
+	"net/http"
+	"time"
 )
-
-var (
-	ErrServiceNotRegistered = errors.New("service not registered")
-)
-
-// RoundTripper abstract the execution of nrpc
-type RoundTripper interface {
-	// RoundTrip send the Request and receive the Response
-	RoundTrip(ctx context.Context, addr string, nreq *Request, out interface{}) (nres *Response, err error)
-}
 
 type ClientOptions struct {
-	MaxRetries   uint64
-	RoundTripper RoundTripper
+	MaxRetries int
+	Timeout    time.Duration
 }
 
 type Client struct {
-	roundTripper RoundTripper
-	maxRetries   uint64
-	services     map[string]string
-	servicesL    sync.Locker
+	maxRetries int
+	client     *http.Client
+	svcs       map[string]string
 }
 
 func NewClient(opts ClientOptions) *Client {
-	if opts.MaxRetries == 0 {
+	if opts.MaxRetries < 0 {
+		opts.MaxRetries = 0
+	} else if opts.MaxRetries == 0 {
 		opts.MaxRetries = 3
 	}
-	if opts.RoundTripper == nil {
-		opts.RoundTripper = DefaultTransport
+	if opts.Timeout == 0 {
+		opts.Timeout = time.Second * 5
 	}
 	return &Client{
-		roundTripper: opts.RoundTripper,
-		maxRetries:   opts.MaxRetries,
-		services:     map[string]string{},
-		servicesL:    &sync.Mutex{},
+		maxRetries: opts.MaxRetries,
+		client: &http.Client{
+			Transport: &http.Transport{
+				DialContext: (&net.Dialer{Timeout: opts.Timeout}).DialContext,
+			},
+		},
+		svcs: map[string]string{},
 	}
 }
 
-func (c *Client) Register(service string, addr string) {
-	c.servicesL.Lock()
-	defer c.servicesL.Unlock()
-	c.services[service] = addr
+func (c *Client) Register(service, host string) {
+	c.svcs[service] = host
 }
 
-func (c *Client) Invoke(ctx context.Context, nreq *Request, out interface{}) (nres *Response, err error) {
-	addr := c.services[nreq.Service]
-	if len(addr) == 0 {
-		err = ErrServiceNotRegistered
-		return
+func (c *Client) Query(service, method string) *Call {
+	return c.Call(service, method, false)
+}
+
+func (c *Client) Command(service, method string) *Call {
+	return c.Call(service, method, true)
+}
+
+func (c *Client) Call(service, method string, command bool) *Call {
+	return &Call{
+		client:  c.client,
+		host:    c.svcs[service],
+		service: service,
+		method:  method,
+		command: command,
+
+		maxRetries: c.maxRetries,
 	}
-
-	nreq.Metadata.Set(MetadataKeyTrackId, trackid.Get(ctx))
-	nreq.Metadata.Set(MetadataKeyHostname, hostname)
-
-	var tried int
-	err = backoff.Retry(func() (err error) {
-		// non-success is error too
-		tried++
-		if nres, err = c.roundTripper.RoundTrip(ctx, addr, nreq, out); err == nil {
-			if nres.Status != StatusOK {
-				err = &Error{Status: nres.Status, Message: nres.Message, Tried: tried}
-			}
-		}
-		return
-	},
-		backoff.WithContext(
-			backoff.WithMaxRetries(backoff.NewExponentialBackOff(),
-				c.maxRetries,
-			),
-			ctx,
-		),
-	)
-	return
 }

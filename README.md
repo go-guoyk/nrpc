@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/go-guoyk/nrpc.svg?branch=master)](https://travis-ci.org/go-guoyk/nrpc)
 
-low overhead rpc library
+http based light weight rpc library
 
 ## Credits
 

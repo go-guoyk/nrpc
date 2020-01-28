@@ -1,33 +1,14 @@
 package nrpc
 
 import (
-	"context"
-	"github.com/stretchr/testify/require"
+	"errors"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func TestServer_HandleError(t *testing.T) {
-	s := NewServer(ServerOptions{})
-	s.Handle("flake", "create", &Handler{
-		Serve: func(ctx context.Context, nreq *Request, nres *Response) error {
-			return &Error{
-				Status:  StatusOK,
-				Message: "test",
-			}
-		},
-	})
-	err := s.Start(":18899")
-	require.NoError(t, err)
-	defer s.Shutdown()
-
-	var m *Response
-	c := NewClient(ClientOptions{})
-	c.Register("flake", "127.0.0.1:18899")
-	req := NewRequest("flake", "create")
-	m, err = c.Invoke(context.Background(), req, nil)
-	require.NotEmpty(t, m.Metadata.Get(MetadataKeyTrackId))
-	require.NotEmpty(t, m.Metadata.Get(MetadataKeyHostname))
-	require.Equal(t, StatusOK, m.Status)
-	require.Equal(t, "test", m.Message)
-	require.NoError(t, err)
+func TestUserError(t *testing.T) {
+	err := errors.New("test error")
+	ue := UserError(err)
+	assert.True(t, IsUserError(ue))
+	assert.Equal(t, err, errors.Unwrap(ue))
 }

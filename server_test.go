@@ -4,84 +4,55 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/stretchr/testify/require"
+	"io/ioutil"
+	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
-func TestServer_Handle(t *testing.T) {
-	s := NewServer(ServerOptions{})
-	s.Handle("flake", "create", &Handler{
-		Serve: func(ctx context.Context, req *Request, res *Response) (err error) {
-			res.Status = StatusOK
-			res.Message = "OK"
-			res.Payload = json.RawMessage{'{', '}'}
-			return
-		},
-	})
-	err := s.Start(":18898")
-	require.NoError(t, err)
-	defer s.Shutdown()
-
-	out := map[string]interface{}{}
-
-	var nres *Response
-	c := NewClient(ClientOptions{})
-	c.Register("flake", "127.0.0.1:18898")
-	nreq := NewRequest("flake", "create")
-	nres, err = c.Invoke(context.Background(), nreq, &out)
-	require.NotEmpty(t, nres.Metadata.Get(MetadataKeyTrackId))
-	require.NotEmpty(t, nres.Metadata.Get(MetadataKeyHostname))
-	require.Equal(t, StatusOK, nres.Status)
-	require.Equal(t, "OK", nres.Message)
-	require.NoError(t, err)
+type IDNewIn struct {
+	Count uint64 `json:"count" query:"count" default:"1"`
 }
 
-func TestServer_HandlePanic(t *testing.T) {
-	s := NewServer(ServerOptions{})
-	s.Handle("flake", "create", &Handler{
-		Serve: func(ctx context.Context, req *Request, res *Response) (err error) {
-			panic("test")
-			return
-		},
-	})
-	err := s.Start(":18878")
-	require.NoError(t, err)
-	defer s.Shutdown()
-
-	out := map[string]interface{}{}
-
-	var nres *Response
-	c := NewClient(ClientOptions{})
-	c.Register("flake", "127.0.0.1:18878")
-	nreq := NewRequest("flake", "create")
-	nres, err = c.Invoke(context.Background(), nreq, &out)
-	require.NotEmpty(t, nres.Metadata.Get(MetadataKeyTrackId))
-	require.NotEmpty(t, nres.Metadata.Get(MetadataKeyHostname))
-	require.Equal(t, StatusErrInternal, nres.Status)
-	require.Equal(t, "test", nres.Message)
+type IDNewOut struct {
+	ID uint64 `json:"id"`
 }
 
-func TestServer_Shutdown(t *testing.T) {
-	s := NewServer(ServerOptions{})
-	s.Handle("test", "test", &Handler{
-		Serve: func(ctx context.Context, req *Request, res *Response) (err error) {
-			time.Sleep(time.Second)
-			res.Message = "OK"
-			res.Payload = map[string]string{"Hello": "World"}
-			return
-		},
-	})
-	err := s.Start(":17777")
+type IDService struct {
+	id uint64
+}
+
+func (ids *IDService) New(ctx context.Context, in *IDNewIn) (out IDNewOut, err error) {
+	out.ID = atomic.AddUint64(&ids.id, in.Count)
+	return
+}
+
+func TestServer(t *testing.T) {
+	s := NewServer(ServerOptions{Addr: ":10888"})
+	s.Register(&IDService{})
+	s.Start(nil)
+	defer s.Shutdown(context.Background())
+
+	time.Sleep(time.Second)
+
+	resp, err := http.Get("http://127.0.0.1:10888/IDService/New?count=2")
 	require.NoError(t, err)
-	nreq := NewRequest("test", "test")
-	go func() {
-		time.Sleep(time.Millisecond * 100)
-		s.Shutdown()
-	}()
-	var nres *Response
-	var m map[string]string
-	nres, err = DefaultTransport.RoundTrip(context.Background(), "127.0.0.1:17777", nreq, &m)
+	defer resp.Body.Close()
+	buf := []byte{}
+	buf, err = ioutil.ReadAll(resp.Body)
+	out := IDNewOut{}
+	err = json.Unmarshal(buf, &out)
 	require.NoError(t, err)
-	require.Equal(t, "OK", nres.Message)
-	require.Equal(t, "World", m["Hello"])
+	require.Equal(t, uint64(2), out.ID)
+
+	resp, err = http.Get("http://127.0.0.1:10888/IDService/New?count=3")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	buf = []byte{}
+	buf, err = ioutil.ReadAll(resp.Body)
+	out = IDNewOut{}
+	err = json.Unmarshal(buf, &out)
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), out.ID)
 }
