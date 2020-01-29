@@ -7,6 +7,7 @@ import (
 	"github.com/creasty/defaults"
 	"github.com/go-playground/form/v4"
 	"github.com/go-playground/validator/v10"
+	"github.com/rs/zerolog/log"
 	"go.guoyk.net/trackid"
 	"io"
 	"net/http"
@@ -142,7 +143,7 @@ func (h *Handler) meterRequestDuration() func() {
 	}
 }
 
-func (h *Handler) sendError(rw http.ResponseWriter, err error) {
+func (h *Handler) sendError(ctx context.Context, rw http.ResponseWriter, err error) {
 	code := http.StatusInternalServerError
 	solid := IsSolid(err)
 	if solid {
@@ -156,14 +157,28 @@ func (h *Handler) sendError(rw http.ResponseWriter, err error) {
 
 	h.meterResponseSize(len(buf))
 	h.meterRequestsTotal(true, solid)
+
+	log.Error().Err(err).Str(
+		"topic", "nrpc_access",
+	).Str(
+		"service", h.svc,
+	).Str(
+		"method", h.mtd,
+	).Bool(
+		"failed", true,
+	).Bool(
+		"solid", solid,
+	).Str(
+		"crid", trackid.Get(ctx),
+	).Msg("")
 }
 
-func (h *Handler) sendBody(rw http.ResponseWriter, body interface{}) {
+func (h *Handler) sendBody(ctx context.Context, rw http.ResponseWriter, body interface{}) {
 	if body == nil {
 		rw.WriteHeader(http.StatusOK)
 	} else {
 		if buf, err := json.Marshal(body); err != nil {
-			h.sendError(rw, err)
+			h.sendError(ctx, rw, err)
 			return // return early prevent double metrics
 		} else {
 			rw.Header().Set(headerContentType, mimeApplicationJSONCharsetUTF8)
@@ -175,9 +190,23 @@ func (h *Handler) sendBody(rw http.ResponseWriter, body interface{}) {
 	}
 
 	h.meterRequestsTotal(false, false)
+
+	log.Info().Str(
+		"topic", "nrpc_access",
+	).Str(
+		"service", h.svc,
+	).Str(
+		"method", h.mtd,
+	).Bool(
+		"failed", false,
+	).Bool(
+		"solid", false,
+	).Str(
+		"crid", trackid.Get(ctx),
+	).Msg("")
 }
 
-func (h *Handler) sendValues(rw http.ResponseWriter, rets []reflect.Value) {
+func (h *Handler) sendValues(ctx context.Context, rw http.ResponseWriter, rets []reflect.Value) {
 	var err error
 	var out interface{}
 	if len(rets) == 1 {
@@ -191,9 +220,9 @@ func (h *Handler) sendValues(rw http.ResponseWriter, rets []reflect.Value) {
 		}
 	}
 	if err != nil {
-		h.sendError(rw, err)
+		h.sendError(ctx, rw, err)
 	} else {
-		h.sendBody(rw, out)
+		h.sendBody(ctx, rw, out)
 	}
 }
 
@@ -247,11 +276,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	args, err := h.buildArgs(ctx, req)
 	if err != nil {
-		h.sendError(rw, err)
+		h.sendError(ctx, rw, err)
 		return
 	}
 
 	rets := h.fn.Call(args)
 
-	h.sendValues(rw, rets)
+	h.sendValues(ctx, rw, rets)
 }
