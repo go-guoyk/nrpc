@@ -8,9 +8,12 @@ import (
 	"github.com/go-playground/form/v4"
 	"github.com/go-playground/validator/v10"
 	"go.guoyk.net/trackid"
+	"io"
 	"net/http"
 	"reflect"
 	"strconv"
+	"sync/atomic"
+	"time"
 )
 
 var (
@@ -29,6 +32,17 @@ const (
 	headerContentType   = "Content-Type"
 	headerContentLength = "Content-Length"
 )
+
+type CountableReader struct {
+	Reader io.Reader
+	Total  int64
+}
+
+func (c *CountableReader) Read(p []byte) (n int, err error) {
+	n, err = c.Reader.Read(p)
+	atomic.AddInt64(&c.Total, int64(n))
+	return
+}
 
 type Handler struct {
 	svc string
@@ -94,9 +108,44 @@ func ExtractHandlers(name string, tgt interface{}) map[string]*Handler {
 	return ret
 }
 
-func sendError(rw http.ResponseWriter, err error) {
+func (h *Handler) meterRequestSize(size int64) {
+	metricsRequestSizeBytes.WithLabelValues(
+		h.svc,
+		h.mtd,
+	).Observe(float64(size))
+}
+
+func (h *Handler) meterRequestsTotal(failed, solid bool) {
+	metricsRequestsTotal.WithLabelValues(
+		h.svc,
+		h.mtd,
+		strconv.FormatBool(failed),
+		strconv.FormatBool(solid),
+	).Inc()
+}
+
+func (h *Handler) meterResponseSize(size int) {
+	metricsResponseSizeBytes.WithLabelValues(
+		h.svc,
+		h.mtd,
+	).Observe(float64(size))
+}
+
+func (h *Handler) meterRequestDuration() func() {
+	start := time.Now()
+	return func() {
+		seconds := float64(time.Since(start)/time.Millisecond) / float64(1000)
+		metricsRequestDurationSeconds.WithLabelValues(
+			h.svc,
+			h.mtd,
+		).Observe(seconds)
+	}
+}
+
+func (h *Handler) sendError(rw http.ResponseWriter, err error) {
 	code := http.StatusInternalServerError
-	if IsSolid(err) {
+	solid := IsSolid(err)
+	if solid {
 		code = http.StatusBadRequest
 	}
 	buf := []byte(err.Error())
@@ -104,23 +153,31 @@ func sendError(rw http.ResponseWriter, err error) {
 	rw.Header().Set(headerContentLength, strconv.Itoa(len(buf)))
 	rw.WriteHeader(code)
 	_, _ = rw.Write(buf)
+
+	h.meterResponseSize(len(buf))
+	h.meterRequestsTotal(true, solid)
 }
 
-func sendBody(rw http.ResponseWriter, body interface{}) {
+func (h *Handler) sendBody(rw http.ResponseWriter, body interface{}) {
 	if body == nil {
 		rw.WriteHeader(http.StatusOK)
 	} else {
 		if buf, err := json.Marshal(body); err != nil {
-			sendError(rw, err)
+			h.sendError(rw, err)
+			return // return early prevent double metrics
 		} else {
 			rw.Header().Set(headerContentType, mimeApplicationJSONCharsetUTF8)
 			rw.Header().Set(headerContentLength, strconv.Itoa(len(buf)))
 			_, _ = rw.Write(buf)
+
+			h.meterResponseSize(len(buf))
 		}
 	}
+
+	h.meterRequestsTotal(false, false)
 }
 
-func sendValues(rw http.ResponseWriter, rets []reflect.Value) {
+func (h *Handler) sendValues(rw http.ResponseWriter, rets []reflect.Value) {
 	var err error
 	var out interface{}
 	if len(rets) == 1 {
@@ -134,9 +191,9 @@ func sendValues(rw http.ResponseWriter, rets []reflect.Value) {
 		}
 	}
 	if err != nil {
-		sendError(rw, err)
+		h.sendError(rw, err)
 	} else {
-		sendBody(rw, out)
+		h.sendBody(rw, out)
 	}
 }
 
@@ -152,11 +209,13 @@ func (h *Handler) buildArgs(ctx context.Context, req *http.Request) (args []refl
 				return
 			}
 		} else if req.Method == http.MethodPost {
-			dec := json.NewDecoder(req.Body)
+			cr := &CountableReader{Reader: req.Body}
+			dec := json.NewDecoder(cr)
 			if err = dec.Decode(v); err != nil {
 				err = Solid(err)
 				return
 			}
+			h.meterRequestSize(cr.Total)
 		} else {
 			err = Solid(fmt.Errorf("invalid http method: %s", req.Method))
 			return
@@ -178,17 +237,21 @@ func (h *Handler) buildArgs(ctx context.Context, req *http.Request) (args []refl
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	// duration
+	commit := h.meterRequestDuration()
+	defer commit()
+
 	// correlation id
 	ctx := trackid.Set(req.Context(), req.Header.Get(headerCorrelationID))
 	rw.Header().Set(headerCorrelationID, trackid.Get(ctx))
 
 	args, err := h.buildArgs(ctx, req)
 	if err != nil {
-		sendError(rw, err)
+		h.sendError(rw, err)
 		return
 	}
 
 	rets := h.fn.Call(args)
 
-	sendValues(rw, rets)
+	h.sendValues(rw, rets)
 }
