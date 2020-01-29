@@ -91,6 +91,8 @@ github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UV
 github.com/stretchr/testify v1.4.0 h1:2E4SXV/wtOkTonXsotYi4li6zVWxYlZuYNCXe9XRJyk=
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
 github.com/zenazn/goji v0.9.0/go.mod h1:7S9M489iMyHBNxwZnk9/EHS098H4/F6TATF2mIxtB1Q=
+go.guoyk.net/nrpc v1.0.0 h1:AGF6SyEAjYANcX2mp6tN4PkACVDp4OFrlhx/oZm1g7A=
+go.guoyk.net/nrpc v1.0.0/go.mod h1:dXTUf7y/tO9k6qeCNJNKTWlBXFjlSnRrh3XImCmfdfo=
 go.guoyk.net/trackid v1.0.0 h1:Ucl3LD3LXWWqbsO3ikY1VzmeNwsTKpl1JpN6uSGDylA=
 go.guoyk.net/trackid v1.0.0/go.mod h1:fCBZEbBWXb/Hs9vadixLDj/2iLhC6KXZ3Oxn+pytTAE=
 golang.org/x/crypto v0.0.0-20180904163835-0709b304e793/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
