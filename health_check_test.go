@@ -29,6 +29,7 @@ func TestHealthChecks(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:3000", nil)
 	hcs.ServeHTTP(rw, req)
 	require.Equal(t, http.StatusOK, rw.Code)
+	require.Equal(t, "OK", rw.Body.String())
 
 	hc1.err = errors.New("test error")
 	require.Error(t, hcs.HealthCheck(context.Background()))

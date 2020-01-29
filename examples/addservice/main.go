@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"go.guoyk.net/nrpc"
+	"go.guoyk.net/nrpc/v2"
 	"os"
 	"os/signal"
 	"sync/atomic"

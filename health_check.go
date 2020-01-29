@@ -35,6 +35,10 @@ func (hcs *HealthChecks) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(http.StatusInternalServerError)
 		_, _ = rw.Write(buf)
 	} else {
+		buf := []byte("OK")
+		rw.Header().Set(headerContentType, mimeTextPlainCharsetUTF8)
+		rw.Header().Set(headerContentLength, strconv.Itoa(len(buf)))
 		rw.WriteHeader(http.StatusOK)
+		_, _ = rw.Write(buf)
 	}
 }
