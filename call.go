@@ -27,16 +27,6 @@ type Call struct {
 	maxRetries int
 }
 
-func (c *Call) In(ptr interface{}) *Call {
-	c.in = ptr
-	return c
-}
-
-func (c *Call) Out(ptr interface{}) *Call {
-	c.out = ptr
-	return c
-}
-
 func (c *Call) buildRequest(ctx context.Context) (req *http.Request, err error) {
 	uri := &url.URL{
 		Scheme: "http",

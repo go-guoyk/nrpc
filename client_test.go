@@ -18,13 +18,13 @@ func TestClient_Call(t *testing.T) {
 	c := NewClient(ClientOptions{MaxRetries: 1})
 	c.Register("TestService", "127.0.0.1:10087")
 
-	err := c.Query("TestService", "Method1").Do(context.Background())
+	err := c.Query("TestService.Method1").Do(context.Background())
 	require.Error(t, err)
 	require.Equal(t, "test error", err.Error())
 	require.False(t, IsSolid(err))
 
 	in := &TestIn{Hello: "world3"}
-	err = c.Query("TestService", "Method2").In(in).Do(context.Background())
+	err = c.Query("TestService.Method2", in).Do(context.Background())
 	require.Error(t, err)
 	require.Equal(t, "test error: world3", err.Error())
 	require.True(t, IsSolid(err))

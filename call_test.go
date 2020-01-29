@@ -25,7 +25,8 @@ func TestCall_Do(t *testing.T) {
 	}
 	in := &TestIn{Hello: "world2"}
 	out := &TestOut{}
-	c.In(in).Out(out)
+	c.in = in
+	c.out = out
 
 	err := c.Do(context.Background())
 	assert.NoError(t, err)
@@ -40,7 +41,8 @@ func TestCall_Do(t *testing.T) {
 	}
 	in = &TestIn{Hello: "world2"}
 	out = &TestOut{}
-	c.In(in).Out(out)
+	c.in = in
+	c.out = out
 
 	err = c.Do(context.Background())
 	assert.NoError(t, err)
@@ -54,7 +56,7 @@ func TestCall_Do(t *testing.T) {
 		command: false,
 	}
 	in = &TestIn{Hello: "world2"}
-	c.In(in)
+	c.in = in
 
 	err = c.Do(context.Background())
 	assert.Error(t, err)
