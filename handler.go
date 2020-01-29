@@ -96,7 +96,7 @@ func ExtractHandlers(name string, tgt interface{}) map[string]*Handler {
 
 func sendError(rw http.ResponseWriter, err error) {
 	code := http.StatusInternalServerError
-	if IsUserError(err) {
+	if IsSolid(err) {
 		code = http.StatusBadRequest
 	}
 	buf := []byte(err.Error())
@@ -148,28 +148,28 @@ func (h *Handler) buildArgs(ctx context.Context, req *http.Request) (args []refl
 			dec := form.NewDecoder()
 			dec.SetTagName("query")
 			if err = dec.Decode(v, req.URL.Query()); err != nil {
-				err = UserError(err)
+				err = Solid(err)
 				return
 			}
 		} else if req.Method == http.MethodPost {
 			dec := json.NewDecoder(req.Body)
 			if err = dec.Decode(v); err != nil {
-				err = UserError(err)
+				err = Solid(err)
 				return
 			}
 		} else {
-			err = UserError(fmt.Errorf("invalid http method: %s", req.Method))
+			err = Solid(fmt.Errorf("invalid http method: %s", req.Method))
 			return
 		}
 		// defaults
 		if err = defaults.Set(v); err != nil {
-			err = UserError(err)
+			err = Solid(err)
 			return
 		}
 		// validate
 		val := validator.New()
 		if err = val.Struct(v); err != nil {
-			err = UserError(err)
+			err = Solid(err)
 			return
 		}
 		args = append(args, reflect.ValueOf(v))

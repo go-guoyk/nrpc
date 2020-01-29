@@ -58,6 +58,6 @@ func TestCall_Do(t *testing.T) {
 
 	err = c.Do(context.Background())
 	assert.Error(t, err)
-	assert.True(t, IsUserError(err))
+	assert.True(t, IsSolid(err))
 	assert.Equal(t, "test error: world2", err.Error())
 }

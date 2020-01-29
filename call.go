@@ -46,17 +46,17 @@ func (c *Call) buildRequest(ctx context.Context) (req *http.Request, err error) 
 
 	if c.command {
 		if c.in == nil {
-			err = UserError(errors.New("request with type 'command' must have body"))
+			err = Solid(errors.New("request with type 'command' must have body"))
 			return
 		}
 		var buf []byte
 		if buf, err = json.Marshal(c.in); err != nil {
-			err = UserError(err)
+			err = Solid(err)
 			return
 		}
 		body := bytes.NewReader(buf)
 		if req, err = http.NewRequestWithContext(ctx, http.MethodPost, uri.String(), body); err != nil {
-			err = UserError(err)
+			err = Solid(err)
 			return
 		}
 		req.Header.Set(headerContentType, mimeApplicationJSONCharsetUTF8)
@@ -66,13 +66,13 @@ func (c *Call) buildRequest(ctx context.Context) (req *http.Request, err error) 
 			enc := form.NewEncoder()
 			enc.SetTagName("query")
 			if q, err = enc.Encode(c.in); err != nil {
-				err = UserError(err)
+				err = Solid(err)
 				return
 			}
 			uri.RawQuery = q.Encode()
 		}
 		if req, err = http.NewRequestWithContext(ctx, http.MethodGet, uri.String(), nil); err != nil {
-			err = UserError(err)
+			err = Solid(err)
 			return
 		}
 	}
@@ -92,12 +92,16 @@ func (c *Call) do(req *http.Request) (err error) {
 
 	// on error
 	if resp.StatusCode >= http.StatusBadRequest {
+		if !strings.HasPrefix(resp.Header.Get(headerContentType), mimeTextPlain) {
+			err = errors.New("not a text response")
+			return
+		}
 		sb := &strings.Builder{}
 		if _, err = io.Copy(sb, resp.Body); err != nil {
 			return
 		}
 		if resp.StatusCode < http.StatusInternalServerError {
-			err = UserError(errors.New(sb.String()))
+			err = Solid(errors.New(sb.String()))
 		} else {
 			err = errors.New(sb.String())
 		}
@@ -120,7 +124,7 @@ func (c *Call) do(req *http.Request) (err error) {
 
 func (c *Call) Do(ctx context.Context) (err error) {
 	if c.host == "" {
-		err = UserError(fmt.Errorf("unknown host for service '%s'", c.service))
+		err = Solid(fmt.Errorf("unknown host for service '%s'", c.service))
 		return
 	}
 
@@ -138,7 +142,7 @@ func (c *Call) Do(ctx context.Context) (err error) {
 
 	err = backoff.Retry(func() error {
 		err := c.do(req)
-		if IsUserError(err) {
+		if IsSolid(err) {
 			err = backoff.Permanent(err)
 		}
 		return err

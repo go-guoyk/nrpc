@@ -29,7 +29,7 @@ func (s *TestService) Method1(ctx context.Context) (err error) {
 }
 
 func (s *TestService) Method2(ctx context.Context, arg *TestIn) (err error) {
-	err = UserError(fmt.Errorf("test error: %s", arg.Hello))
+	err = Solid(fmt.Errorf("test error: %s", arg.Hello))
 	return
 }
 

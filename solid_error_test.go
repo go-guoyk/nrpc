@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-func TestUserError(t *testing.T) {
+func TestSolidError(t *testing.T) {
 	err := errors.New("test error")
-	ue := UserError(err)
-	assert.True(t, IsUserError(ue))
+	ue := Solid(err)
+	assert.True(t, IsSolid(ue))
 	assert.Equal(t, err, errors.Unwrap(ue))
 }
