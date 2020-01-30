@@ -1,6 +1,8 @@
 package nrpc
 
 import (
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"net"
 	"net/http"
 	"strings"
@@ -10,12 +12,14 @@ import (
 type ClientOptions struct {
 	MaxRetries int
 	Timeout    time.Duration
+	Logger     *zerolog.Logger
 }
 
 type Client struct {
 	maxRetries int
 	client     *http.Client
 	svcs       map[string]string
+	logger     zerolog.Logger
 }
 
 func NewClient(opts ClientOptions) *Client {
@@ -27,6 +31,9 @@ func NewClient(opts ClientOptions) *Client {
 	if opts.Timeout == 0 {
 		opts.Timeout = time.Second * 5
 	}
+	if opts.Logger == nil {
+		opts.Logger = &log.Logger
+	}
 	return &Client{
 		maxRetries: opts.MaxRetries,
 		client: &http.Client{
@@ -34,7 +41,8 @@ func NewClient(opts ClientOptions) *Client {
 				DialContext: (&net.Dialer{Timeout: opts.Timeout}).DialContext,
 			},
 		},
-		svcs: map[string]string{},
+		svcs:   map[string]string{},
+		logger: opts.Logger.With().Str("topic", "nrpc-client").Logger(),
 	}
 }
 
@@ -66,6 +74,7 @@ func (c *Client) Call(target string, command bool, inout ...interface{}) *Call {
 		service: service,
 		method:  method,
 		command: command,
+		logger:  c.logger.With().Str("service", service).Str("method", method).Str("host", host).Logger(),
 
 		maxRetries: c.maxRetries,
 	}

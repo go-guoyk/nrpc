@@ -46,8 +46,8 @@ func (s *TestService) Method4(ctx context.Context) (out TestOut, err error) {
 func TestExtractHandlers(t *testing.T) {
 	hs := ExtractHandlers("TestService", &TestService{})
 	assert.Equal(t, 4, len(hs))
-	assert.Nil(t, hs["Method1"].in)
-	assert.Equal(t, reflect.Struct, hs["Method2"].in.Kind())
+	assert.Nil(t, hs["Method1"].inType)
+	assert.Equal(t, reflect.Struct, hs["Method2"].inType.Kind())
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {

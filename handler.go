@@ -7,7 +7,7 @@ import (
 	"github.com/creasty/defaults"
 	"github.com/go-playground/form/v4"
 	"github.com/go-playground/validator/v10"
-	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
 	"go.guoyk.net/trackid"
 	"io"
 	"net/http"
@@ -46,11 +46,12 @@ func (c *CountableReader) Read(p []byte) (n int, err error) {
 }
 
 type Handler struct {
-	svc string
-	mtd string
-	tgt interface{}
-	fn  reflect.Value
-	in  reflect.Type
+	logger  zerolog.Logger
+	service string
+	method  string
+	target  interface{}
+	fn      reflect.Value
+	inType  reflect.Type
 }
 
 func checkRPCFunc(t reflect.Type) (in reflect.Type, ok bool) {
@@ -103,7 +104,7 @@ func ExtractHandlers(name string, tgt interface{}) map[string]*Handler {
 	for i := 0; i < t.NumMethod(); i++ {
 		m := t.Method(i)
 		if in, ok := checkRPCFunc(m.Type); ok {
-			ret[m.Name] = &Handler{svc: name, mtd: m.Name, tgt: tgt, fn: m.Func, in: in}
+			ret[m.Name] = &Handler{service: name, method: m.Name, target: tgt, fn: m.Func, inType: in}
 		}
 	}
 	return ret
@@ -111,15 +112,15 @@ func ExtractHandlers(name string, tgt interface{}) map[string]*Handler {
 
 func (h *Handler) meterRequestSize(size int64) {
 	metricsRequestSizeBytes.WithLabelValues(
-		h.svc,
-		h.mtd,
+		h.service,
+		h.method,
 	).Observe(float64(size))
 }
 
 func (h *Handler) meterRequestsTotal(failed, solid bool) {
 	metricsRequestsTotal.WithLabelValues(
-		h.svc,
-		h.mtd,
+		h.service,
+		h.method,
 		strconv.FormatBool(failed),
 		strconv.FormatBool(solid),
 	).Inc()
@@ -127,8 +128,8 @@ func (h *Handler) meterRequestsTotal(failed, solid bool) {
 
 func (h *Handler) meterResponseSize(size int) {
 	metricsResponseSizeBytes.WithLabelValues(
-		h.svc,
-		h.mtd,
+		h.service,
+		h.method,
 	).Observe(float64(size))
 }
 
@@ -137,8 +138,8 @@ func (h *Handler) meterRequestDuration() func() {
 	return func() {
 		seconds := float64(time.Since(start)/time.Millisecond) / float64(1000)
 		metricsRequestDurationSeconds.WithLabelValues(
-			h.svc,
-			h.mtd,
+			h.service,
+			h.method,
 		).Observe(seconds)
 	}
 }
@@ -158,19 +159,7 @@ func (h *Handler) sendError(ctx context.Context, rw http.ResponseWriter, err err
 	h.meterResponseSize(len(buf))
 	h.meterRequestsTotal(true, solid)
 
-	log.Error().Err(err).Str(
-		"topic", "nrpc_access",
-	).Str(
-		"service", h.svc,
-	).Str(
-		"method", h.mtd,
-	).Bool(
-		"failed", true,
-	).Bool(
-		"solid", solid,
-	).Str(
-		"crid", trackid.Get(ctx),
-	).Msg("")
+	h.logger.Err(err).Bool("failed", true).Bool("solid", solid).Str("crid", trackid.Get(ctx)).Msg("handled")
 }
 
 func (h *Handler) sendBody(ctx context.Context, rw http.ResponseWriter, body interface{}) {
@@ -191,19 +180,7 @@ func (h *Handler) sendBody(ctx context.Context, rw http.ResponseWriter, body int
 
 	h.meterRequestsTotal(false, false)
 
-	log.Info().Str(
-		"topic", "nrpc_access",
-	).Str(
-		"service", h.svc,
-	).Str(
-		"method", h.mtd,
-	).Bool(
-		"failed", false,
-	).Bool(
-		"solid", false,
-	).Str(
-		"crid", trackid.Get(ctx),
-	).Msg("")
+	h.logger.Info().Bool("failed", false).Bool("solid", false).Str("crid", trackid.Get(ctx)).Msg("handled")
 }
 
 func (h *Handler) sendValues(ctx context.Context, rw http.ResponseWriter, rets []reflect.Value) {
@@ -227,9 +204,9 @@ func (h *Handler) sendValues(ctx context.Context, rw http.ResponseWriter, rets [
 }
 
 func (h *Handler) buildArgs(ctx context.Context, req *http.Request) (args []reflect.Value, err error) {
-	args = []reflect.Value{reflect.ValueOf(h.tgt), reflect.ValueOf(ctx)}
-	if h.in != nil {
-		v := reflect.New(h.in).Interface()
+	args = []reflect.Value{reflect.ValueOf(h.target), reflect.ValueOf(ctx)}
+	if h.inType != nil {
+		v := reflect.New(h.inType).Interface()
 		if req.Method == http.MethodGet {
 			dec := form.NewDecoder()
 			dec.SetTagName("query")

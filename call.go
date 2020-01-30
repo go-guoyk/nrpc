@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-playground/form/v4"
+	"github.com/rs/zerolog"
 	"go.guoyk.net/trackid"
 	"io"
 	"net/http"
@@ -23,6 +24,7 @@ type Call struct {
 	command bool
 	in      interface{}
 	out     interface{}
+	logger  zerolog.Logger
 
 	maxRetries int
 }
@@ -131,11 +133,16 @@ func (c *Call) Do(ctx context.Context) (err error) {
 	)
 
 	err = backoff.Retry(func() error {
-		err := c.do(req)
-		if IsSolid(err) {
-			err = backoff.Permanent(err)
+		if err := c.do(req); err != nil {
+			c.logger.Error().Err(err).Msg("invoked")
+			if IsSolid(err) {
+				err = backoff.Permanent(err)
+			}
+			return err
+		} else {
+			c.logger.Info().Msg("invoked")
+			return err
 		}
-		return err
 	}, bo)
 
 	return
